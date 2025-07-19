@@ -1,5 +1,3 @@
-// src/app/base/[baseId]/table/[tableId]/page.tsx
-
 import { notFound } from "next/navigation";
 import { HydrateClient } from "~/trpc/server";
 import { db } from "~/server/db";
@@ -8,17 +6,13 @@ import { TableView } from "~/app/_components/TableView";
 export default async function Page({
   params,
 }: {
-  params: { baseId: string; tableId: string };
+  params: Promise<{ baseId: string; tableId: string }>;
 }) {
-  const { baseId, tableId } = params;
+  const { baseId, tableId } = await params;
 
   const table = await db.table.findUnique({
     where: { id: tableId },
-    select: {
-      id: true,
-      name: true,
-      baseId: true,
-    },
+    select: { id: true, name: true, baseId: true },
   });
 
   if (!table || table.baseId !== baseId) {
