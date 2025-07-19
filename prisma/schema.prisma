@@ -78,6 +78,8 @@ model Table {
   createdAt DateTime @default(now())
   columns   Column[]
   rows      Row[]
+
+  views View[]
 }
 
 model Column {
@@ -114,8 +116,7 @@ model View {
   table     Table    @relation(fields: [tableId], references: [id])
   createdAt DateTime @default(now())
 
-  filters   Json     // store array of filter objects: columnId, operator, value
-  sorts     Json     // store array of sort config: columnId, direction
+  filters       Json // store array of filter objects: columnId, operator, value
+  sorts         Json // store array of sort config: columnId, direction
   hiddenColumns Json // array of hidden columnIds
 }
-
