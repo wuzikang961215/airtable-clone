@@ -8,16 +8,12 @@ export const tableRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       return ctx.prisma.table.findMany({
         where: { baseId: input.baseId },
-        include: {
-          columns: true,
-          rows: {
-            include: {
-              cells: {
-                include: {
-                  column: true,
-                },
-              },
-            },
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          _count: {
+            select: { columns: true, rows: true }, // optional summary
           },
         },
       });
