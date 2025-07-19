@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useEffect } from "react";
 import { api } from "~/trpc/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 type Props = {
   tableId: string;
 };
 
 export const TableView = ({ tableId }: Props) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const { data: columns, isLoading: loadingColumns, isError: errorColumns } =
     api.column.getByTable.useQuery({ tableId });
 
@@ -28,65 +31,106 @@ export const TableView = ({ tableId }: Props) => {
     }
   );
 
-  const rows = rowPages?.pages.flatMap((page) => page.rows) ?? [];
+  const rows = rowPages?.pages.flatMap((p) => p.rows) ?? [];
+
+  const rowVirtualizer = useVirtualizer({
+    count: hasNextPage ? rows.length + 1 : rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 40,
+    overscan: 10,
+  });
+
+  // Only fetch when near end + not already fetching
+  useEffect(() => {
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    if (!virtualItems.length) return;
+
+    const lastItem = virtualItems[virtualItems.length - 1];
+
+    if (
+      lastItem && 
+      lastItem.index >= rows.length - 1 &&
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
+      console.log("Fetching next page...");
+      void fetchNextPage();
+    }
+  }, [rows.length, rowVirtualizer.getVirtualItems(), hasNextPage, isFetchingNextPage]);
 
   if (loadingColumns || loadingRows) {
-    return <p className="text-gray-500 px-4 py-2">Loading table data...</p>;
+    return <p className="p-4 text-gray-500">Loading...</p>;
   }
 
   if (errorColumns || errorRows || !columns) {
-    return (
-      <p className="text-red-500 px-4 py-2">
-        Failed to load table data. Please try again.
-      </p>
-    );
+    return <p className="p-4 text-red-500">Failed to load data.</p>;
   }
 
   return (
-    <div className="overflow-auto border border-gray-300 rounded max-h-[75vh]">
-      <table className="min-w-full table-auto text-sm">
+    <div className="overflow-auto border border-gray-300 rounded max-h-[80vh]">
+      <table className="min-w-full table-fixed text-sm">
         <thead className="bg-gray-100 sticky top-0 z-10">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.id}
-                className="px-4 py-2 border-b font-medium text-gray-700"
+                className="px-4 py-2 border-b text-left font-semibold text-gray-700"
               >
                 {col.name}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.id}
-              className="border-t hover:bg-gray-50 transition-colors"
-            >
-              {columns.map((col) => {
-                const cell = row.cells.find((c) => c.columnId === col.id);
-                return (
-                  <td key={col.id} className="px-4 py-2 border-b text-gray-800">
-                    {cell?.value ?? ""}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
       </table>
 
-      {hasNextPage && (
-        <div className="flex justify-center p-4">
-          <button
-            onClick={() => void fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isFetchingNextPage ? "Loading..." : "Load More"}
-          </button>
+      <div
+        ref={parentRef}
+        className="overflow-auto max-h-[70vh]"
+        style={{ position: "relative" }}
+      >
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            position: "relative",
+            width: "100%",
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index];
+
+            return (
+              <div
+                key={virtualRow.key}
+                ref={rowVirtualizer.measureElement}
+                className="absolute top-0 left-0 right-0"
+                style={{
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <table className="table-fixed w-full text-sm">
+                  <tbody>
+                    <tr className="border-t hover:bg-gray-50">
+                      {columns.map((col) => {
+                        const cell = row?.cells.find(
+                          (c) => c.columnId === col.id
+                        );
+                        return (
+                          <td key={col.id} className="px-4 py-2 border-b">
+                            {cell?.value ?? (row ? "" : "Loading...")}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
-      )}
+        {isFetchingNextPage && (
+          <div className="text-center py-2 text-gray-500">Loading more...</div>
+        )}
+      </div>
     </div>
   );
 };
