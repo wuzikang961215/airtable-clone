@@ -40,24 +40,22 @@ export const TableView = ({ tableId }: Props) => {
     overscan: 10,
   });
 
-  // Only fetch when near end + not already fetching
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
   useEffect(() => {
-    const virtualItems = rowVirtualizer.getVirtualItems();
     if (!virtualItems.length) return;
-  
+
     const lastItem = virtualItems[virtualItems.length - 1];
-  
     if (
       lastItem &&
       lastItem.index >= rows.length - 1 &&
       hasNextPage &&
       !isFetchingNextPage
     ) {
-      console.log("Fetching next page...");
       void fetchNextPage();
     }
-  }, [rows.length, rowVirtualizer, hasNextPage, isFetchingNextPage, fetchNextPage]);
-  
+  }, [virtualItems, rows.length, hasNextPage, isFetchingNextPage]);
+
   if (loadingColumns || loadingRows) {
     return <p className="p-4 text-gray-500">Loading...</p>;
   }
@@ -69,12 +67,12 @@ export const TableView = ({ tableId }: Props) => {
   return (
     <div className="overflow-auto border border-gray-300 rounded max-h-[80vh]">
       <table className="min-w-full table-fixed text-sm">
-        <thead className="bg-gray-100 sticky top-0 z-10">
+        <thead className="sticky top-0 z-10">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.id}
-                className="px-4 py-2 border-b text-left font-semibold text-gray-700"
+                className="px-4 py-2 border-b border-r border-gray-300 last:border-r-0 text-left font-semibold text-gray-700 bg-white"
               >
                 {col.name}
               </th>
@@ -95,7 +93,7 @@ export const TableView = ({ tableId }: Props) => {
             width: "100%",
           }}
         >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          {virtualItems.map((virtualRow) => {
             const row = rows[virtualRow.index];
 
             return (
@@ -111,12 +109,27 @@ export const TableView = ({ tableId }: Props) => {
                   <tbody>
                     <tr className="border-t hover:bg-gray-50">
                       {columns.map((col) => {
-                        const cell = row?.cells.find(
+                        if (!row) {
+                          return (
+                            <td
+                              key={col.id}
+                              className="px-4 py-2 border-b border-r border-gray-300 last:border-r-0 text-gray-400 italic"
+                            >
+                              Loading...
+                            </td>
+                          );
+                        }
+
+                        const cell = row.cells.find(
                           (c) => c.columnId === col.id
                         );
+
                         return (
-                          <td key={col.id} className="px-4 py-2 border-b">
-                            {cell?.value ?? (row ? "" : "Loading...")}
+                          <td
+                            key={col.id}
+                            className="px-4 py-2 border-b border-r border-gray-300 last:border-r-0"
+                          >
+                            {cell?.value ?? ""}
                           </td>
                         );
                       })}
@@ -127,8 +140,11 @@ export const TableView = ({ tableId }: Props) => {
             );
           })}
         </div>
+
         {isFetchingNextPage && (
-          <div className="text-center py-2 text-gray-500">Loading more...</div>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-sm text-gray-500">
+            Loading more...
+          </div>
         )}
       </div>
     </div>
