@@ -106,3 +106,16 @@ model Cell {
   column   Column @relation(fields: [columnId], references: [id])
   value    String
 }
+
+model View {
+  id        String   @id @default(cuid())
+  name      String
+  tableId   String
+  table     Table    @relation(fields: [tableId], references: [id])
+  createdAt DateTime @default(now())
+
+  filters   Json     // store array of filter objects: columnId, operator, value
+  sorts     Json     // store array of sort config: columnId, direction
+  hiddenColumns Json // array of hidden columnIds
+}
+
