@@ -1,3 +1,5 @@
+// src/app/base/[baseId]/table/[tableId]/page.tsx
+
 import { notFound } from "next/navigation";
 import { HydrateClient } from "~/trpc/server";
 import { db } from "~/server/db";
@@ -8,8 +10,10 @@ export default async function Page({
 }: {
   params: { baseId: string; tableId: string };
 }) {
+  const { baseId, tableId } = params;
+
   const table = await db.table.findUnique({
-    where: { id: params.tableId },
+    where: { id: tableId },
     select: {
       id: true,
       name: true,
@@ -17,7 +21,7 @@ export default async function Page({
     },
   });
 
-  if (!table || table.baseId !== params.baseId) {
+  if (!table || table.baseId !== baseId) {
     return notFound();
   }
 
@@ -25,7 +29,7 @@ export default async function Page({
     <HydrateClient>
       <main className="min-h-screen p-6 bg-white text-gray-900">
         <h1 className="text-2xl font-semibold mb-4">{table.name}</h1>
-        <TableView tableId={params.tableId} />
+        <TableView tableId={tableId} />
       </main>
     </HydrateClient>
   );

@@ -37,7 +37,7 @@ export const TableView = ({ tableId }: Props) => {
                 const cell = row.cells.find((c) => c.columnId === col.id);
                 return (
                   <td key={col.id} className="px-4 py-2 border-b">
-                    {cell?.value || ""}
+                    {cell?.value ?? ""}
                   </td>
                 );
               })}
