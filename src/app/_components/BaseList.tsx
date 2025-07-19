@@ -19,14 +19,18 @@ export const BaseList = () => {
   const [name, setName] = useState("");
 
   const handleCreate = async () => {
-    if (!name.trim()) return;
+    console.log("clicked!");
+    const trimmedName = name.trim();
+    const finalName = trimmedName || "Untitled Base";
+    console.log("Calling createBase with:", finalName);
+  
     try {
-      await createBase({ name });
+      await createBase({ name: finalName });
       setName("");
     } catch (err) {
       console.error("Failed to create base", err);
     }
-  };
+  };  
 
   return (
     <div>
@@ -75,6 +79,7 @@ const BaseItem = ({ base }: { base: { id: string; name: string } }) => {
 
   const handleCreateTable = async () => {
     try {
+      console.log("clicked")
       await createTableMutation.mutateAsync({
         baseId: base.id,
         name: `Table ${Math.floor(Math.random() * 1000)}`,
