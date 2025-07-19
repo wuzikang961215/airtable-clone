@@ -44,11 +44,11 @@ export const TableView = ({ tableId }: Props) => {
   useEffect(() => {
     const virtualItems = rowVirtualizer.getVirtualItems();
     if (!virtualItems.length) return;
-
+  
     const lastItem = virtualItems[virtualItems.length - 1];
-
+  
     if (
-      lastItem && 
+      lastItem &&
       lastItem.index >= rows.length - 1 &&
       hasNextPage &&
       !isFetchingNextPage
@@ -56,8 +56,8 @@ export const TableView = ({ tableId }: Props) => {
       console.log("Fetching next page...");
       void fetchNextPage();
     }
-  }, [rows.length, rowVirtualizer.getVirtualItems(), hasNextPage, isFetchingNextPage]);
-
+  }, [rows.length, rowVirtualizer, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  
   if (loadingColumns || loadingRows) {
     return <p className="p-4 text-gray-500">Loading...</p>;
   }

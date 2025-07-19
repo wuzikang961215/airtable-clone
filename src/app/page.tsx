@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "~/server/auth";
 import { HydrateClient } from "~/trpc/server";
-import { BaseList } from "~/app/_components/BaseList";
+import BaseList from "~/app/_components/BaseList";
 
 export default async function Home() {
   const session = await auth();
