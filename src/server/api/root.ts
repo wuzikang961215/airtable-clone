@@ -2,6 +2,7 @@ import { baseRouter } from "~/server/api/routers/base";
 import { tableRouter } from "~/server/api/routers/table"; // ✅ Correct import
 import { columnRouter } from "~/server/api/routers/column";
 import { rowRouter } from "~/server/api/routers/row";
+import { cellRouter } from "./routers/cell";
 
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
@@ -10,6 +11,7 @@ export const appRouter = createTRPCRouter({
   table: tableRouter, // ✅ Added once
   column: columnRouter,
   row: rowRouter,
+  cell: cellRouter,
 });
 
 export type AppRouter = typeof appRouter;

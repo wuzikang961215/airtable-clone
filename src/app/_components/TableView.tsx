@@ -16,7 +16,11 @@ export const TableView = ({ tableId }: Props) => {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ rowId: string; columnId: string } | null>(null);
+
   const { data: cols, isLoading: loadingCols } = api.column.getByTable.useQuery({ tableId });
+  const updateCell = api.cell.update.useMutation();
 
   const {
     data: rowPages,
@@ -31,10 +35,8 @@ export const TableView = ({ tableId }: Props) => {
     }
   );
 
-  // 整合数据
   useEffect(() => {
     if (!rowPages) return;
-
     const newData = rowPages.pages.flatMap((p) =>
       p.rows.map((r) => {
         const rec: Record<string, unknown> = { id: r.id };
@@ -44,7 +46,6 @@ export const TableView = ({ tableId }: Props) => {
         return rec;
       })
     );
-
     setData(newData);
   }, [rowPages]);
 
@@ -87,7 +88,6 @@ export const TableView = ({ tableId }: Props) => {
   const vCols = columnVirtualizer.getVirtualItems();
   const vRows = rowVirtualizer.getVirtualItems();
 
-  // 自动分页
   useEffect(() => {
     const lastItem = vRows[vRows.length - 1];
     if (
@@ -131,8 +131,6 @@ export const TableView = ({ tableId }: Props) => {
                   width: vc.size,
                   height: 40,
                   boxSizing: "border-box",
-                  borderBottom: "1px solid #ccc",
-                  borderRight: "1px solid #ccc",
                   padding: "0 8px",
                   background: "white",
                   fontWeight: "500",
@@ -156,14 +154,26 @@ export const TableView = ({ tableId }: Props) => {
                 const cell = row.getVisibleCells()[vc.index];
                 if (!cell) return null;
 
-                const cellContent = flexRender(
-                  cell.column.columnDef.cell,
-                  cell.getContext()
-                );
+                const cellKey = {
+                  rowId: row.original.id as string,
+                  columnId: cell.column.id,
+                };
+
+                const isSelected =
+                  selectedCell?.rowId === cellKey.rowId &&
+                  selectedCell?.columnId === cellKey.columnId;
+
+                const isEditing =
+                  editingCell?.rowId === cellKey.rowId &&
+                  editingCell?.columnId === cellKey.columnId;
+
+                const cellValue = cell.getValue() as string;
 
                 return (
                   <div
                     key={cell.id}
+                    onClick={() => setSelectedCell(cellKey)}
+                    onDoubleClick={() => setEditingCell(cellKey)}
                     style={{
                       position: "absolute",
                       top: vr.start + 40,
@@ -179,22 +189,36 @@ export const TableView = ({ tableId }: Props) => {
                       overflow: "hidden",
                       whiteSpace: "nowrap",
                       textOverflow: "ellipsis",
+                      border: isSelected ? "2px solid #3b82f6" : "1px solid #eee", // blue border
                     }}
-                    title={
-                      typeof cellContent === "string" || typeof cellContent === "number"
-                        ? String(cellContent)
-                        : undefined
-                    }
+                    title={typeof cellValue === "string" || typeof cellValue === "number" ? String(cellValue) : undefined}
                   >
-                    <span className="truncate block w-full">
-                      {React.isValidElement(cellContent) ||
-                      typeof cellContent === "string" ||
-                      typeof cellContent === "number"
-                        ? cellContent
-                        : null}
-                    </span>
+                    {isEditing ? (
+                      <input
+                        autoFocus
+                        defaultValue={cellValue}
+                        className="w-full h-full bg-white border-none outline-none"
+                        onBlur={(e) => {
+                          const newVal = e.target.value;
+                          setData((prev) =>
+                            prev.map((r) =>
+                              r.id === cellKey.rowId
+                                ? { ...r, [cellKey.columnId]: newVal }
+                                : r
+                            )
+                          );
+                          updateCell.mutate({
+                            rowId: cellKey.rowId,
+                            columnId: cellKey.columnId,
+                            value: newVal,
+                          });
+                          setEditingCell(null);
+                        }}
+                      />
+                    ) : (
+                      <span className="truncate block w-full">{cellValue}</span>
+                    )}
                   </div>
-
                 );
               })}
             </React.Fragment>
