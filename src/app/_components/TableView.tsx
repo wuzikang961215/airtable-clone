@@ -1,152 +1,193 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { api } from "~/trpc/react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+} from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table"; // ✅ 类型导入
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { api } from "~/trpc/react";
 
-type Props = {
-  tableId: string;
-};
+type Props = { tableId: string };
 
 export const TableView = ({ tableId }: Props) => {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const [data, setData] = useState<any[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: columns, isLoading: loadingColumns, isError: errorColumns } =
-    api.column.getByTable.useQuery({ tableId });
+  const { data: cols, isLoading: loadingCols } = api.column.getByTable.useQuery({ tableId });
 
   const {
     data: rowPages,
     isLoading: loadingRows,
-    isError: errorRows,
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
   } = api.row.getByTable.useInfiniteQuery(
-    {
-      tableId,
-      limit: 50,
-    },
-    {
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
-    }
+    { tableId, limit: 100 },
+    { getNextPageParam: (p) => p.nextCursor }
   );
 
-  const rows = rowPages?.pages.flatMap((p) => p.rows) ?? [];
+  // 数据整合
+  useEffect(() => {
+    if (!rowPages) return;
+    setData(
+      rowPages.pages.flatMap((p) =>
+        p.rows.map((r) => {
+          const rec: any = { id: r.id };
+          r.cells.forEach((c) => {
+            rec[c.columnId] = c.value;
+          });
+          return rec;
+        })
+      )
+    );
+  }, [rowPages]);
+
+  const columns = useMemo<ColumnDef<any>[]>(
+    () =>
+      cols?.map((c) => ({
+        accessorKey: c.id,
+        header: c.name,
+        cell: (info) => info.getValue() as string,
+        size: 150,
+      })) ?? [],
+    [cols]
+  );
+
+  const table = useReactTable({
+    data,
+    columns,
+    defaultColumn: { size: 150 },
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const visibleColumns = table.getVisibleLeafColumns();
+  const rows = table.getRowModel().rows;
+
+  const columnVirtualizer = useVirtualizer({
+    horizontal: true,
+    count: visibleColumns.length,
+    estimateSize: (i) => visibleColumns[i]?.getSize() ?? 150,
+    getScrollElement: () => containerRef.current,
+    overscan: 2,
+  });
 
   const rowVirtualizer = useVirtualizer({
-    count: hasNextPage ? rows.length + 1 : rows.length,
-    getScrollElement: () => parentRef.current,
+    count: rows.length,
     estimateSize: () => 40,
+    getScrollElement: () => containerRef.current,
     overscan: 10,
   });
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
+  const vCols = columnVirtualizer.getVirtualItems();
+  const vRows = rowVirtualizer.getVirtualItems();
 
+  // 🔁 自动加载下一页
   useEffect(() => {
-    if (!virtualItems.length) return;
-
-    const lastItem = virtualItems[virtualItems.length - 1];
+    const lastItem = vRows[vRows.length - 1];
     if (
       lastItem &&
       lastItem.index >= rows.length - 1 &&
       hasNextPage &&
       !isFetchingNextPage
     ) {
-      void fetchNextPage();
+      fetchNextPage().catch(console.error);
     }
-  }, [virtualItems, rows.length, hasNextPage, isFetchingNextPage]);
+  }, [vRows, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  if (loadingColumns || loadingRows) {
-    return <p className="p-4 text-gray-500">Loading...</p>;
-  }
-
-  if (errorColumns || errorRows || !columns) {
-    return <p className="p-4 text-red-500">Failed to load data.</p>;
+  if (loadingCols || loadingRows) {
+    return <div className="p-4 text-gray-500">Loading...</div>;
   }
 
   return (
-    <div className="overflow-auto border border-gray-300 rounded max-h-[80vh]">
-      <table className="min-w-full table-fixed text-sm">
-        <thead className="sticky top-0 z-10">
-          <tr>
-            {columns.map((col) => (
-              <th
-                key={col.id}
-                className="px-4 py-2 border-b border-r border-gray-300 last:border-r-0 text-left font-semibold text-gray-700 bg-white"
-              >
-                {col.name}
-              </th>
-            ))}
-          </tr>
-        </thead>
-      </table>
-
+    <div
+      ref={containerRef}
+      className="overflow-auto relative border rounded max-h-[80vh] text-sm"
+    >
       <div
-        ref={parentRef}
-        className="overflow-auto max-h-[70vh]"
-        style={{ position: "relative" }}
+        style={{
+          width: columnVirtualizer.getTotalSize(),
+          height: rowVirtualizer.getTotalSize() + 40,
+          position: "relative",
+        }}
       >
-        <div
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            position: "relative",
-            width: "100%",
-          }}
-        >
-          {virtualItems.map((virtualRow) => {
-            const row = rows[virtualRow.index];
-
+        {/* Headers */}
+        {table.getHeaderGroups().map((hg) =>
+          vCols.map((vc) => {
+            const header = hg.headers[vc.index];
+            if (!header) return null;
             return (
               <div
-                key={virtualRow.key}
-                ref={rowVirtualizer.measureElement}
-                className="absolute top-0 left-0 right-0"
+                key={header.id}
                 style={{
-                  transform: `translateY(${virtualRow.start}px)`,
+                  position: "absolute",
+                  top: 0,
+                  left: vc.start,
+                  width: vc.size,
+                  height: 40,
+                  boxSizing: "border-box",
+                  borderBottom: "1px solid #ccc",
+                  borderRight: "1px solid #ccc",
+                  padding: "0 8px",
+                  background: "white",
+                  fontWeight: "500",
+                  zIndex: 1,
                 }}
               >
-                <table className="table-fixed w-full text-sm">
-                  <tbody>
-                    <tr className="border-t hover:bg-gray-50">
-                      {columns.map((col) => {
-                        if (!row) {
-                          return (
-                            <td
-                              key={col.id}
-                              className="px-4 py-2 border-b border-r border-gray-300 last:border-r-0 text-gray-400 italic"
-                            >
-                              Loading...
-                            </td>
-                          );
-                        }
-
-                        const cell = row.cells.find(
-                          (c) => c.columnId === col.id
-                        );
-
-                        return (
-                          <td
-                            key={col.id}
-                            className="px-4 py-2 border-b border-r border-gray-300 last:border-r-0"
-                          >
-                            {cell?.value ?? ""}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tbody>
-                </table>
+                {flexRender(header.column.columnDef.header, header.getContext())}
               </div>
             );
-          })}
-        </div>
-
-        {isFetchingNextPage && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-sm text-gray-500">
-            Loading more...
-          </div>
+          })
         )}
+
+        {/* Rows */}
+        {vRows.map((vr) => {
+          const row = rows[vr.index];
+          if (!row) return null;
+
+          return (
+            <React.Fragment key={vr.index}>
+              {vCols.map((vc) => {
+                const cell = row.getVisibleCells()[vc.index];
+                if (!cell) return null;
+
+                const cellContent = flexRender(cell.column.columnDef.cell, cell.getContext());
+
+                return (
+                  <div
+                    key={cell.id}
+                    style={{
+                      position: "absolute",
+                      top: vr.start + 40,
+                      left: vc.start,
+                      width: vc.size,
+                      height: vr.size,
+                      padding: "0 8px",
+                      borderRight: "1px solid #eee",
+                      borderBottom: "1px solid #eee",
+                      display: "flex",
+                      alignItems: "center",
+                      background: "white",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={String(cellContent)}
+                  >
+                    <span className="truncate block w-full">{cellContent}</span>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
       </div>
+
+      {isFetchingNextPage && (
+        <div className="text-center p-2 text-gray-500">Loading more…</div>
+      )}
     </div>
   );
 };

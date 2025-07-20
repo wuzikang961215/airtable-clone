@@ -74,9 +74,9 @@ export default function BaseTabsPage() {
           </div>
         </div>
 
-        {/* Pink Tabs */}
-        <div className="bg-pink-100 px-6 pt-2 pb-1 border-b flex items-center justify-between">
-          <div className="flex gap-2">
+        {/* Tab Bar with Custom Peach Color */}
+        <div className="bg-[#ffeee5] px-6 pt-2 pb-1 border-b">
+          <div className="flex gap-2 items-center">
             {tables.map((t) => (
               <Button
                 key={t.id}
@@ -84,23 +84,25 @@ export default function BaseTabsPage() {
                 size="sm"
                 className={`rounded-full px-4 py-1 text-sm ${
                   activeTableId === t.id
-                    ? "bg-white text-pink-800"
-                    : "text-pink-700 hover:bg-pink-200"
+                    ? "bg-white text-[#993f3a]"
+                    : "text-[#b35c4e] hover:bg-[#ffd7c4]"
                 }`}
                 onClick={() => setSelectedTableId(t.id)}
               >
                 {t.name}
               </Button>
             ))}
+
+            {/* ➕ Button right after the last tab */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-[#b35c4e] hover:bg-[#ffd7c4]"
+              onClick={handleAddTable}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-pink-700 hover:bg-pink-200"
-            onClick={handleAddTable}
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
         </div>
 
         {/* Grid Controls */}
