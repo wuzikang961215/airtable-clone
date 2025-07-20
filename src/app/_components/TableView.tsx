@@ -376,7 +376,9 @@ export const TableView = ({ tableId }: Props) => {
                       />
                     ) : (
                       <span className="truncate block w-full">
-                        {cellValue === undefined || cellValue === null ? "" : String(cellValue)}
+                        {typeof cellValue === "string" || typeof cellValue === "number"
+                          ? cellValue
+                          : ""}
                       </span>
                     )}
                   </div>
