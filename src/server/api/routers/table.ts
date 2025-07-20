@@ -7,7 +7,10 @@ export const tableRouter = createTRPCRouter({
     .input(z.object({ baseId: z.string() }))
     .query(async ({ ctx, input }) => {
       return ctx.prisma.table.findMany({
-        where: { baseId: input.baseId },
+        where: {
+          baseId: input.baseId,
+          isDeleted: false, // 👈 Add this
+        },
         select: {
           id: true,
           name: true,

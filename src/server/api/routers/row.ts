@@ -6,23 +6,26 @@ export const rowRouter = createTRPCRouter({
     .input(
       z.object({
         tableId: z.string(),
-        limit: z.number().min(1).max(100).default(50), // default 50 rows
-        cursor: z.string().nullish(), // for pagination
+        limit: z.number().min(1).max(100).default(50),
+        cursor: z.string().nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {
       const { tableId, limit, cursor } = input;
 
       const rows = await ctx.prisma.row.findMany({
-        where: { tableId },
-        take: limit + 1, // Fetch one extra row to check for next page
+        where: {
+          tableId,
+          isDeleted: false, // ✅ only fetch active rows
+        },
+        take: limit + 1,
         skip: cursor ? 1 : 0,
         cursor: cursor ? { id: cursor } : undefined,
         orderBy: { createdAt: "asc" },
         include: {
           cells: {
             include: {
-              column: true, // only include if you really need it
+              column: true,
             },
           },
         },

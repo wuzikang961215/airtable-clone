@@ -4,7 +4,10 @@ import { protectedProcedure, createTRPCRouter } from "~/server/api/trpc";
 export const baseRouter = createTRPCRouter({
   getAll: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.base.findMany({
-      where: { userId: ctx.session.user.id },
+      where: {
+        userId: ctx.session.user.id,
+        isDeleted: false, // 👈 Add this line
+      },
       orderBy: { createdAt: "desc" },
     });
   }),
@@ -28,6 +31,20 @@ export const baseRouter = createTRPCRouter({
         data: {
           name: input.name,
           userId: ctx.session.user.id,
+        },
+      });
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ baseId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.base.update({
+        where: {
+          id: input.baseId,
+          userId: ctx.session.user.id, // optional: extra security
+        },
+        data: {
+          isDeleted: true,
         },
       });
     }),

@@ -6,7 +6,10 @@ export const columnRouter = createTRPCRouter({
     .input(z.object({ tableId: z.string() }))
     .query(async ({ ctx, input }) => {
       return await ctx.prisma.column.findMany({
-        where: { tableId: input.tableId },
+        where: {
+          tableId: input.tableId,
+          isDeleted: false, // ✅ only fetch active columns
+        },
         orderBy: { order: "asc" },
       });
     }),

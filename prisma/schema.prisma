@@ -1,35 +1,27 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-  // Further reading:
-  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
   url      = env("DATABASE_URL")
 }
 
-// Necessary for Next auth
 model Account {
   id                       String  @id @default(cuid())
   userId                   String
   type                     String
   provider                 String
   providerAccountId        String
-  refresh_token            String? // @db.Text
-  access_token             String? // @db.Text
+  refresh_token            String?
+  access_token             String?
   expires_at               Int?
   token_type               String?
   scope                    String?
-  id_token                 String? // @db.Text
+  id_token                 String?
   session_state            String?
-  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -49,8 +41,8 @@ model User {
   emailVerified DateTime?
   image         String?
   accounts      Account[]
-  sessions      Session[]
   Base          Base[]
+  sessions      Session[]
 }
 
 model VerificationToken {
@@ -65,8 +57,9 @@ model Base {
   id        String   @id @default(cuid())
   name      String
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+  isDeleted Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id])
   tables    Table[]
 }
 
@@ -74,49 +67,50 @@ model Table {
   id        String   @id @default(cuid())
   name      String
   baseId    String
-  base      Base     @relation(fields: [baseId], references: [id])
   createdAt DateTime @default(now())
+  isDeleted Boolean  @default(false)
   columns   Column[]
   rows      Row[]
-
-  views View[]
+  base      Base     @relation(fields: [baseId], references: [id])
+  views     View[]
 }
 
 model Column {
-  id      String @id @default(cuid())
-  name    String
-  type    String // e.g. "text", "number"
-  order   Int // for left-right ordering
-  tableId String
-  table   Table  @relation(fields: [tableId], references: [id])
-  Cell    Cell[]
+  id        String  @id @default(cuid())
+  name      String
+  type      String
+  order     Int
+  tableId   String
+  isDeleted Boolean @default(false)
+  Cell      Cell[]
+  table     Table   @relation(fields: [tableId], references: [id])
 }
 
 model Row {
   id        String   @id @default(cuid())
   tableId   String
-  table     Table    @relation(fields: [tableId], references: [id])
   createdAt DateTime @default(now())
+  isDeleted Boolean  @default(false)
   cells     Cell[]
+  table     Table    @relation(fields: [tableId], references: [id])
 }
 
 model Cell {
   id       String @id @default(cuid())
   rowId    String
-  row      Row    @relation(fields: [rowId], references: [id])
   columnId String
-  column   Column @relation(fields: [columnId], references: [id])
   value    String
+  column   Column @relation(fields: [columnId], references: [id])
+  row      Row    @relation(fields: [rowId], references: [id])
 }
 
 model View {
-  id        String   @id @default(cuid())
-  name      String
-  tableId   String
-  table     Table    @relation(fields: [tableId], references: [id])
-  createdAt DateTime @default(now())
-
-  filters       Json // store array of filter objects: columnId, operator, value
-  sorts         Json // store array of sort config: columnId, direction
-  hiddenColumns Json // array of hidden columnIds
+  id            String   @id @default(cuid())
+  name          String
+  tableId       String
+  createdAt     DateTime @default(now())
+  filters       Json
+  sorts         Json
+  hiddenColumns Json
+  table         Table    @relation(fields: [tableId], references: [id])
 }

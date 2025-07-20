@@ -14,7 +14,14 @@ import {
   Bell,
   HelpCircle,
   Plus,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "../../components/ui/dropdown-menu";
 
 export default function BaseList() {
   const utils = api.useUtils();
@@ -28,6 +35,7 @@ export default function BaseList() {
   const isCreating = createBaseMutation.isPending;
   const [name, setName] = useState("");
   const [showInput, setShowInput] = useState(false);
+  const [deletingBaseId, setDeletingBaseId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     const trimmed = name.trim();
@@ -40,6 +48,16 @@ export default function BaseList() {
       console.error("Failed to create base", err);
     }
   };
+
+  const deleteBase = api.base.delete.useMutation({
+    onMutate: ({ baseId }) => {
+      setDeletingBaseId(baseId);
+    },
+    onSettled: () => {
+      setDeletingBaseId(null);
+      void utils.base.getAll.invalidate();
+    },
+  });
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -121,14 +139,62 @@ export default function BaseList() {
             <Card className="p-4 text-sm text-gray-500">Loading...</Card>
           ) : (
             <>
-              {bases?.map((base) => (
-                <Link key={base.id} href={`/base/${base.id}`} className="block">
-                  <Card className="p-4 border-2 border-orange-200 rounded-xl bg-orange-50 cursor-pointer hover:shadow-md">
-                    <p className="font-medium">{base.name}</p>
-                    <p className="text-xs text-gray-500">Opened recently</p>
-                  </Card>
-                </Link>
-              ))}
+              {bases?.map((base) => {
+                const isDeleting = deletingBaseId === base.id;
+                return (
+                  <div key={base.id} className="relative group">
+                    <Link href={`/base/${base.id}`} className="block">
+                      <Card className="p-4 border-2 border-gray-200 rounded-xl bg-white cursor-pointer hover:shadow-md">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-orange-200 rounded-xl w-10 h-10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-orange-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path d="M4 4h16v16H4z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm text-gray-800">{base.name}</p>
+                            <p className="text-xs text-gray-500">Opened recently</p>
+                          </div>
+                        </div>
+                      </Card>
+                    </Link>
+
+                    {/* Star button */}
+                    <button
+                      className="absolute top-2 right-10 bg-white rounded-md p-1 shadow hover:bg-gray-100"
+                      aria-label="Star"
+                    >
+                      <Star className="w-4 h-4 text-gray-400 hover:text-yellow-500" />
+                    </button>
+
+                    {/* Dropdown menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="absolute top-2 right-2 bg-white rounded-md p-1 shadow hover:bg-gray-100"
+                          aria-label="More options"
+                        >
+                          <MoreVertical className="w-4 h-4 text-gray-600" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => console.log("Rename", base.id)}>Rename</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => console.log("Duplicate", base.id)}>Duplicate</DropdownMenuItem>
+                        <DropdownMenuItem>Move</DropdownMenuItem>
+                        <DropdownMenuItem>Go to workspace</DropdownMenuItem>
+                        <DropdownMenuItem>Customize appearance</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => deleteBase.mutate({ baseId: base.id })}
+                          disabled={isDeleting}
+                          className={`text-red-500 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+                        >
+                          {isDeleting ? "Deleting..." : "Delete"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })}
 
               <Card
                 className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 cursor-pointer hover:border-blue-400 hover:text-blue-600 flex flex-col items-center justify-center"
