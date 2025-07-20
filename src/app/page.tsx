@@ -10,7 +10,7 @@ export default async function Home() {
     <HydrateClient>
       <main className="min-h-screen bg-gray-100 text-gray-900 px-8 py-6">
         <header className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Airtable Clone</h1>
+          <h1 className="text-3xl font-bold">Airtable</h1>
 
           {session ? (
             <div className="flex items-center gap-4">

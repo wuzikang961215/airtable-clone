@@ -19,7 +19,7 @@ export const tableRouter = createTRPCRouter({
       });
     }),
 
-  create: protectedProcedure
+    create: protectedProcedure
     .input(z.object({ baseId: z.string(), name: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // 1. Create the table
@@ -29,66 +29,52 @@ export const tableRouter = createTRPCRouter({
           baseId: input.baseId,
         },
       });
-
-      // 2. Create 3 default columns
-      const columns = await ctx.prisma.$transaction([
+  
+      // 2. Create 3 columns
+      const [nameCol, ageCol, countryCol] = await ctx.prisma.$transaction([
         ctx.prisma.column.create({
-          data: {
-            tableId: table.id,
-            name: "Name",
-            type: "text",
-            order: 0,
-          },
+          data: { tableId: table.id, name: "Name", type: "text", order: 0 },
         }),
         ctx.prisma.column.create({
-          data: {
-            tableId: table.id,
-            name: "Age",
-            type: "number",
-            order: 1,
-          },
+          data: { tableId: table.id, name: "Age", type: "number", order: 1 },
         }),
         ctx.prisma.column.create({
-          data: {
-            tableId: table.id,
-            name: "Country",
-            type: "text",
-            order: 2,
-          },
+          data: { tableId: table.id, name: "Country", type: "text", order: 2 },
         }),
       ]);
-
-      // 3. Create 100 rows
-      const rows = await ctx.prisma.$transaction(
-        Array.from({ length: 100 }).map(() =>
-          ctx.prisma.row.create({
-            data: {
-              tableId: table.id,
-            },
-          }),
-        )
-      );
-
-      // 4. Create cells for each row/column combo
-      const cellPromises = rows.flatMap((row) =>
-        columns.map((column) =>
-          ctx.prisma.cell.create({
-            data: {
-              rowId: row.id,
-              columnId: column.id,
-              value:
-                column.name === "Name"
-                  ? faker.person.fullName()
-                  : column.name === "Age"
-                  ? String(faker.number.int({ min: 18, max: 65 }))
-                  : faker.location.country(),
-            },
-          })
-        )
-      );
-
-      await ctx.prisma.$transaction(cellPromises);
-
+  
+      // 3. Bulk insert rows
+      const rowData = Array.from({ length: 100 }).map(() => ({
+        tableId: table.id,
+      }));
+      await ctx.prisma.row.createMany({ data: rowData });
+  
+      const rows = await ctx.prisma.row.findMany({
+        where: { tableId: table.id },
+        select: { id: true },
+      });
+  
+      // 4. Bulk insert cells
+      const cellData = rows.flatMap((row) => [
+        {
+          rowId: row.id,
+          columnId: nameCol.id,
+          value: faker.person.fullName(),
+        },
+        {
+          rowId: row.id,
+          columnId: ageCol.id,
+          value: String(faker.number.int({ min: 18, max: 65 })),
+        },
+        {
+          rowId: row.id,
+          columnId: countryCol.id,
+          value: faker.location.country(),
+        },
+      ]);
+  
+      await ctx.prisma.cell.createMany({ data: cellData });
+  
       return table;
-    }),
+    }),  
 });
