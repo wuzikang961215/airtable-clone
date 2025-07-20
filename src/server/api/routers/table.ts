@@ -80,4 +80,19 @@ export const tableRouter = createTRPCRouter({
   
       return table;
     }),  
+
+  delete: protectedProcedure
+  .input(z.object({ tableId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.table.update({
+        where: {
+          id: input.tableId,
+          // 可选：限制只能删除自己 Base 下的表
+          // base: { userId: ctx.session.user.id }
+        },
+        data: {
+          isDeleted: true,
+        },
+      });
+    }),
 });

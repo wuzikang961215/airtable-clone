@@ -2,17 +2,31 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Table, LayoutGrid, Bell, CircleUser, Plus } from "lucide-react";
+import {
+  Table,
+  LayoutGrid,
+  Bell,
+  CircleUser,
+  Plus,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { api } from "~/trpc/react";
 import { TableView } from "~/app/_components/TableView";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "../../../components/ui/dropdown-menu";
 
 export default function BaseTabsPage() {
   const params = useParams();
   const baseId = typeof params.baseId === "string" ? params.baseId : null;
 
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const utils = api.useUtils();
 
@@ -30,6 +44,13 @@ export default function BaseTabsPage() {
   const createTable = api.table.create.useMutation({
     onSuccess: async () => {
       await utils.table.getByBase.invalidate({ baseId: baseId! });
+    },
+  });
+
+  const deleteTable = api.table.delete.useMutation({
+    onSuccess: async () => {
+      await utils.table.getByBase.invalidate({ baseId: baseId! });
+      setSelectedTableId(null);
     },
   });
 
@@ -74,26 +95,59 @@ export default function BaseTabsPage() {
           </div>
         </div>
 
-        {/* Tab Bar with Custom Peach Color */}
+        {/* Tab Bar */}
         <div className="bg-[#ffeee5] px-6 pt-2 pb-1 border-b">
           <div className="flex gap-2 items-center">
-            {tables.map((t) => (
-              <Button
-                key={t.id}
-                variant={activeTableId === t.id ? "secondary" : "ghost"}
-                size="sm"
-                className={`rounded-full px-4 py-1 text-sm ${
-                  activeTableId === t.id
-                    ? "bg-white text-[#993f3a]"
-                    : "text-[#b35c4e] hover:bg-[#ffd7c4]"
-                }`}
-                onClick={() => setSelectedTableId(t.id)}
-              >
-                {t.name}
-              </Button>
-            ))}
+            {tables.map((t) => {
+              const isActive = activeTableId === t.id;
+              return (
+                <div key={t.id}>
+                  {isActive ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center px-4 py-1 text-sm bg-white text-[#993f3a] rounded-md border border-[#e6bdb1] hover:bg-[#fff6f3] transition"
+                        >
+                          {t.name}
+                          <ChevronDown className="w-4 h-4 ml-2 text-[#993f3a]" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-48">
+                        <DropdownMenuItem>Rename table</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setDeletingId(t.id);
+                            deleteTable.mutate(
+                              { tableId: t.id },
+                              {
+                                onSettled: () => setDeletingId(null),
+                              }
+                            );
+                          }}
+                          disabled={deletingId === t.id}
+                          className="text-red-500"
+                        >
+                          {deletingId === t.id ? "Deleting..." : "Delete table"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Button
+                      key={t.id}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedTableId(t.id)}
+                      className="rounded-md px-4 py-1 text-sm text-[#b35c4e] hover:bg-[#ffd7c4]"
+                    >
+                      {t.name}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
 
-            {/* ➕ Button right after the last tab */}
+            {/* ➕ Add Table */}
             <Button
               variant="ghost"
               size="icon"
@@ -111,7 +165,11 @@ export default function BaseTabsPage() {
             <Button variant="ghost" size="sm">
               + Create new...
             </Button>
-            <Input type="text" placeholder="Find a view" className="h-7 w-40 text-sm" />
+            <Input
+              type="text"
+              placeholder="Find a view"
+              className="h-7 w-40 text-sm"
+            />
             <Button variant="secondary" size="sm">
               Grid view
             </Button>

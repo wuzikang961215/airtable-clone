@@ -200,20 +200,24 @@ export const TableView = ({ tableId }: Props) => {
                         className="w-full h-full bg-white border-none outline-none"
                         onBlur={(e) => {
                           const newVal = e.target.value;
-                          setData((prev) =>
-                            prev.map((r) =>
-                              r.id === cellKey.rowId
-                                ? { ...r, [cellKey.columnId]: newVal }
-                                : r
-                            )
-                          );
-                          updateCell.mutate({
-                            rowId: cellKey.rowId,
-                            columnId: cellKey.columnId,
-                            value: newVal,
-                          });
+                        
+                          if (newVal !== cellValue) {
+                            setData((prev) =>
+                              prev.map((r) =>
+                                r.id === cellKey.rowId
+                                  ? { ...r, [cellKey.columnId]: newVal }
+                                  : r
+                              )
+                            );
+                            updateCell.mutate({
+                              rowId: cellKey.rowId,
+                              columnId: cellKey.columnId,
+                              value: newVal,
+                            });
+                          }
+                        
                           setEditingCell(null);
-                        }}
+                        }}                        
                       />
                     ) : (
                       <span className="truncate block w-full">{cellValue}</span>
