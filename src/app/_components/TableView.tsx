@@ -5,15 +5,15 @@ import {
   useReactTable,
   getCoreRowModel,
   flexRender,
+  type ColumnDef,
 } from "@tanstack/react-table";
-import type { ColumnDef } from "@tanstack/react-table"; // ✅ 类型导入
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "~/trpc/react";
 
 type Props = { tableId: string };
 
 export const TableView = ({ tableId }: Props) => {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<Record<string, unknown>[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: cols, isLoading: loadingCols } = api.column.getByTable.useQuery({ tableId });
@@ -26,37 +26,40 @@ export const TableView = ({ tableId }: Props) => {
     hasNextPage,
   } = api.row.getByTable.useInfiniteQuery(
     { tableId, limit: 100 },
-    { getNextPageParam: (p) => p.nextCursor }
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    }
   );
 
-  // 数据整合
+  // 整合数据
   useEffect(() => {
     if (!rowPages) return;
-    setData(
-      rowPages.pages.flatMap((p) =>
-        p.rows.map((r) => {
-          const rec: any = { id: r.id };
-          r.cells.forEach((c) => {
-            rec[c.columnId] = c.value;
-          });
-          return rec;
-        })
-      )
+
+    const newData = rowPages.pages.flatMap((p) =>
+      p.rows.map((r) => {
+        const rec: Record<string, unknown> = { id: r.id };
+        for (const c of r.cells) {
+          rec[c.columnId] = c.value;
+        }
+        return rec;
+      })
     );
+
+    setData(newData);
   }, [rowPages]);
 
-  const columns = useMemo<ColumnDef<any>[]>(
+  const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () =>
-      cols?.map((c) => ({
+      (cols ?? []).map((c) => ({
         accessorKey: c.id,
         header: c.name,
         cell: (info) => info.getValue() as string,
         size: 150,
-      })) ?? [],
+      })),
     [cols]
   );
 
-  const table = useReactTable({
+  const table = useReactTable<Record<string, unknown>>({
     data,
     columns,
     defaultColumn: { size: 150 },
@@ -84,7 +87,7 @@ export const TableView = ({ tableId }: Props) => {
   const vCols = columnVirtualizer.getVirtualItems();
   const vRows = rowVirtualizer.getVirtualItems();
 
-  // 🔁 自动加载下一页
+  // 自动分页
   useEffect(() => {
     const lastItem = vRows[vRows.length - 1];
     if (
@@ -93,7 +96,7 @@ export const TableView = ({ tableId }: Props) => {
       hasNextPage &&
       !isFetchingNextPage
     ) {
-      fetchNextPage().catch(console.error);
+      void fetchNextPage();
     }
   }, [vRows, rows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
@@ -153,7 +156,10 @@ export const TableView = ({ tableId }: Props) => {
                 const cell = row.getVisibleCells()[vc.index];
                 if (!cell) return null;
 
-                const cellContent = flexRender(cell.column.columnDef.cell, cell.getContext());
+                const cellContent = flexRender(
+                  cell.column.columnDef.cell,
+                  cell.getContext()
+                );
 
                 return (
                   <div
@@ -174,10 +180,21 @@ export const TableView = ({ tableId }: Props) => {
                       whiteSpace: "nowrap",
                       textOverflow: "ellipsis",
                     }}
-                    title={String(cellContent)}
+                    title={
+                      typeof cellContent === "string" || typeof cellContent === "number"
+                        ? String(cellContent)
+                        : undefined
+                    }
                   >
-                    <span className="truncate block w-full">{cellContent}</span>
+                    <span className="truncate block w-full">
+                      {React.isValidElement(cellContent) ||
+                      typeof cellContent === "string" ||
+                      typeof cellContent === "number"
+                        ? cellContent
+                        : null}
+                    </span>
                   </div>
+
                 );
               })}
             </React.Fragment>
