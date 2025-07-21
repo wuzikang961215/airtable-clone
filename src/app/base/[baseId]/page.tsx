@@ -161,19 +161,6 @@ export default function BaseTabsPage() {
 
         {/* Grid Controls */}
         <div className="px-6 py-2 flex items-center justify-between text-sm border-b bg-gray-50">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm">
-              + Create new...
-            </Button>
-            <Input
-              type="text"
-              placeholder="Find a view"
-              className="h-7 w-40 text-sm"
-            />
-            <Button variant="secondary" size="sm">
-              Grid view
-            </Button>
-          </div>
           <div className="flex items-center gap-3 text-xs text-gray-500">
             <Button variant="ghost" size="sm">
               Hide fields
@@ -197,12 +184,16 @@ export default function BaseTabsPage() {
         </div>
 
         {/* Table Content */}
-        <div className="flex-1 bg-white overflow-auto text-sm">
-          {tables.map((t) => (
-            <div key={t.id} className={activeTableId === t.id ? "block" : "hidden"}>
-              <TableView tableId={t.id} />
-            </div>
-          ))}
+        <div className="flex flex-1 bg-white overflow-hidden">
+
+          {/* Active table view */}
+          <div className="flex-1 overflow-auto">
+            {tables.map((t) => (
+              <div key={t.id} className={activeTableId === t.id ? "block" : "hidden"}>
+                <TableView tableId={t.id} />
+              </div>
+            ))}
+          </div>
         </div>
       </main>
     </div>

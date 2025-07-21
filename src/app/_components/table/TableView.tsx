@@ -2,17 +2,25 @@
 
 import { EditableTable } from "./EditableTable";
 import { useTableData } from "~/hooks/useTableData";
+import { ViewSelector } from "./ViewSelector";
+import { useState } from "react";
 
 type Props = {
   tableId: string;
   viewId?: string; // ✅ Support optional viewId
 };
 
-export const TableView = ({ tableId, viewId }: Props) => {
+export const TableView = ({ tableId }: Props) => {
+  const [views, setViews] = useState([
+    { id: "view-1", name: "Grid view", type: "Grid" },
+    { id: "view-2", name: "Grid 2", type: "Grid" },
+  ]);
+  const [activeViewId, setActiveViewId] = useState("view-1");
+
   const {
     rowsById,
     columns,
-    viewConfig, // NEW
+    viewConfig,
     loading,
     fetchNextPage,
     hasNextPage,
@@ -20,7 +28,7 @@ export const TableView = ({ tableId, viewId }: Props) => {
     updateCell,
     addRow,
     addColumn,
-  } = useTableData(tableId, viewId); // ✅ pass viewId into the hook
+  } = useTableData(tableId, activeViewId);
 
   const isReady =
     !loading &&
@@ -29,23 +37,39 @@ export const TableView = ({ tableId, viewId }: Props) => {
     rowsById &&
     Object.keys(rowsById).length > 0;
 
-  if (!isReady) {
-    return <div className="p-4 text-gray-500">Loading...</div>;
-  }
-
   const rows = Object.values(rowsById);
 
   return (
-    <EditableTable
-      rows={rows}
-      columns={columns}
-      viewConfig={viewConfig} // ✅ NEW
-      fetchNextPage={fetchNextPage}
-      hasNextPage={hasNextPage}
-      isFetchingNextPage={isFetchingNextPage}
-      updateCell={updateCell}
-      addRow={addRow}
-      addColumn={addColumn}
-    />
+    <div className="flex h-full">
+      <ViewSelector
+        tableId={tableId}
+        views={views}
+        currentViewId={activeViewId}
+        onViewChange={(id) => setActiveViewId(id)}
+        onCreateView={(newView) => {
+          setViews((prev) => [...prev, newView]);
+          setActiveViewId(newView.id);
+        }}
+      />
+
+      <div className="flex-1">
+        {isReady ? (
+          <EditableTable
+            rows={rows}
+            columns={columns}
+            viewConfig={viewConfig}
+            fetchNextPage={fetchNextPage}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            updateCell={updateCell}
+            addRow={addRow}
+            addColumn={addColumn}
+          />
+        ) : (
+          <div className="p-4 text-gray-500">Loading...</div>
+        )}
+      </div>
+    </div>
   );
 };
+
