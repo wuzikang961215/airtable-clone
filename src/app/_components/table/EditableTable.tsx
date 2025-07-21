@@ -8,9 +8,9 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { CellEditor } from "./CellEditor";
-import { AddColumnForm } from "./AddColumnForm";
-import { AddRowDropdown } from "./AddRowDropdown";
+import { useCellNavigation } from "./EditableTable/useCellNavigation";
+import { useColumnAndRowMaps } from "./EditableTable/useColumnAndRowMaps";
+import { VirtualizedTableBody } from "./EditableTable/VirtualizedTableBody";
 
 type Row = {
   id: string;
@@ -20,6 +20,10 @@ type Row = {
 type Props = {
   rows: Row[];
   columns: { id: string; name: string }[];
+  viewConfig: {
+    columnOrder: string[];
+    hiddenColumnIds: string[];
+  };
   fetchNextPage: () => void;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
@@ -31,6 +35,7 @@ type Props = {
 export const EditableTable = ({
   rows,
   columns,
+  viewConfig,
   fetchNextPage,
   hasNextPage,
   isFetchingNextPage,
@@ -38,16 +43,23 @@ export const EditableTable = ({
   addRow,
   addColumn,
 }: Props) => {
-  // ❗ hooks must be declared unconditionally
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const shouldRenderTable = columns && columns.length > 0;
+  const visibleColumnsOrdered = React.useMemo(() => {
+    const map = new Map(columns.map((c) => [c.id, c]));
+    return viewConfig.columnOrder
+      .filter((id) => !viewConfig.hiddenColumnIds.includes(id))
+      .map((id) => map.get(id))
+      .filter(Boolean) as { id: string; name: string }[];
+  }, [columns, viewConfig]);
+
+  const shouldRenderTable = visibleColumnsOrdered.length > 0;
 
   const table = useReactTable({
     data: rows,
-    columns: columns.map(
+    columns: visibleColumnsOrdered.map(
       (c): ColumnDef<Row> => ({
         accessorKey: c.id,
         header: c.name,
@@ -81,6 +93,39 @@ export const EditableTable = ({
   const vCols = columnVirtualizer.getVirtualItems();
   const vRows = rowVirtualizer.getVirtualItems();
 
+  const { columnIdToIndex, rowIdToIndex, rowIdList } = useColumnAndRowMaps(
+    tableRows,
+    visibleColumns
+  );
+
+  // Auto-select first cell
+  useEffect(() => {
+    if (!selectedCell && tableRows.length > 0 && visibleColumns.length > 0) {
+        const firstRow = tableRows[0];
+        const firstCol = visibleColumns[0];
+        
+        if (firstRow?.original?.id && firstCol?.id) {
+          setSelectedCell({
+            rowId: firstRow.original.id,
+            columnId: firstCol.id,
+          });
+        }        
+    }
+  }, [selectedCell, tableRows, visibleColumns]);
+  
+  
+
+  useCellNavigation({
+    selectedCell,
+    setSelectedCell,
+    editingCell,
+    setEditingCell,
+    columnIdToIndex,
+    rowIdToIndex,
+    visibleColumns,
+    rowIdList,
+  });
+
   useEffect(() => {
     const lastItem = vRows[vRows.length - 1];
     if (lastItem && lastItem.index >= tableRows.length - 1 && hasNextPage && !isFetchingNextPage) {
@@ -97,159 +142,21 @@ export const EditableTable = ({
       ref={containerRef}
       className="overflow-auto relative border rounded max-h-[80vh] text-sm"
     >
-      <div
-        style={{
-          width: columnVirtualizer.getTotalSize() + 40,
-          height: rowVirtualizer.getTotalSize() + 40,
-          position: "relative",
-        }}
-      >
-        {/* Top-left corner header */}
-        <div className="absolute top-0 left-0 w-10 h-10 bg-gray-50 border-r border-b flex items-center justify-center font-bold z-10">
-          #
-        </div>
-
-        {/* Headers */}
-        {table.getHeaderGroups().map((hg) =>
-          vCols.map((vc) => {
-            const isRightmost = vc.index === visibleColumns.length;
-            const header = hg.headers[vc.index];
-
-            return (
-              <div
-                key={vc.key}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: vc.start + 40,
-                  width: vc.size,
-                  height: 40,
-                  padding: "0 8px",
-                  background: "white",
-                  fontWeight: 500,
-                  zIndex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                {isRightmost ? (
-                  <AddColumnForm onAddColumn={addColumn} />
-                ) : (
-                  header && flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </div>
-            );
-          })
-        )}
-
-        {/* Row numbers + Cells */}
-        {vRows.map((vr) => {
-          const isBottomRow = vr.index === tableRows.length;
-          const row = tableRows[vr.index];
-
-          return (
-            <React.Fragment key={vr.key}>
-              {/* Row index / Add Row */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: vr.start + 40,
-                  left: 0,
-                  width: 40,
-                  height: vr.size,
-                  borderBottom: "1px solid #eee",
-                  borderRight: "1px solid #eee",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 500,
-                  background: isBottomRow ? "#f9fafb" : "white",
-                }}
-              >
-                {isBottomRow ? (
-                  <AddRowDropdown
-                    onAddRows={(count) => {
-                      for (let i = 0; i < count; i++) addRow();
-                    }}
-                  />
-                ) : (
-                  vr.index + 1
-                )}
-              </div>
-
-              {/* Row cells */}
-              {vCols.map((vc) => {
-                const col = visibleColumns[vc.index];
-                const isRightmost = vc.index === visibleColumns.length;
-                if (!col || isRightmost || isBottomRow || !row) return null;
-
-                const cell = row.getVisibleCells().find((c) => c.column.id === col.id);
-                if (!cell) return null;
-
-                const cellKey = {
-                  rowId: row.original.id,
-                  columnId: cell.column.id,
-                };
-
-                const isSelected =
-                  selectedCell?.rowId === cellKey.rowId &&
-                  selectedCell?.columnId === cellKey.columnId;
-
-                const isEditing =
-                  editingCell?.rowId === cellKey.rowId &&
-                  editingCell?.columnId === cellKey.columnId;
-
-                const cellValue = cell.getValue();
-
-                return (
-                  <div
-                    key={cell.id}
-                    onClick={() => setSelectedCell(cellKey)}
-                    onDoubleClick={() => setEditingCell(cellKey)}
-                    style={{
-                      position: "absolute",
-                      top: vr.start + 40,
-                      left: vc.start + 40,
-                      width: vc.size,
-                      height: vr.size,
-                      padding: "0 8px",
-                      borderRight: "1px solid #eee",
-                      borderBottom: "1px solid #eee",
-                      display: "flex",
-                      alignItems: "center",
-                      background: "white",
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                      textOverflow: "ellipsis",
-                      border: isSelected ? "2px solid #3b82f6" : "1px solid #eee",
-                    }}
-                    title={
-                      typeof cellValue === "string" || typeof cellValue === "number"
-                        ? String(cellValue)
-                        : undefined
-                    }
-                  >
-                    {isEditing ? (
-                      <CellEditor
-                      value={typeof cellValue === "string" || typeof cellValue === "number" ? String(cellValue) : ""}
-                        onChange={(newVal) => updateCell(cellKey.rowId, cellKey.columnId, newVal)}
-                        onBlur={() => setEditingCell(null)}
-                      />
-                    ) : (
-                      <span className="truncate block w-full">
-                        {typeof cellValue === "string" || typeof cellValue === "number"
-                          ? cellValue
-                          : ""}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
-      </div>
-
+      <VirtualizedTableBody
+        table={table} // ✅ REQUIRED
+        containerRef={containerRef}
+        tableRows={tableRows}
+        visibleColumns={visibleColumns}
+        vRows={vRows}
+        vCols={vCols}
+        updateCell={updateCell}
+        editingCell={editingCell}
+        selectedCell={selectedCell}
+        setSelectedCell={setSelectedCell}
+        setEditingCell={setEditingCell}
+        addRow={addRow}
+        addColumn={addColumn}
+      />
       {isFetchingNextPage && (
         <div className="text-center p-2 text-gray-500">Loading more…</div>
       )}

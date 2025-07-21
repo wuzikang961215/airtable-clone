@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import debounce from "lodash.debounce"; // ✅ 若报错需执行：npm i -D @types/lodash.debounce
 import { api } from "~/trpc/react";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 type Cell = { columnId: string; value: string };
 type Row = { id: string; cells: Cell[] };
-type Page = { rows: Row[]; nextCursor?: string };
-type Column = { id: string; name: string; type: string };
 
 type FlatRow = {
   id: string;
@@ -15,7 +14,6 @@ type FlatRow = {
 type Filter = { columnId: string; operator: "equals" | "contains"; value: string };
 type Sort = { columnId: string; direction: "asc" | "desc" };
 
-// ─── Hook ────────────────────────────────────────────────────────────────
 export function useTableData(tableId: string, viewId?: string) {
   const [rowsById, setRowsById] = useState<Record<string, FlatRow>>({});
 
@@ -33,6 +31,23 @@ export function useTableData(tableId: string, viewId?: string) {
     { enabled: !!viewId }
   );
 
+  const viewConfig = useMemo(() => {
+    const columnOrder = Array.isArray(view?.columnOrder)
+      ? (view?.columnOrder as string[]) // ✅ 安全断言为 string[]
+      : columns.map((c) => c.id);
+
+    const hiddenColumnIds = Array.isArray(view?.hiddenColumns)
+      ? (view?.hiddenColumns as string[]) // ✅ 安全断言为 string[]
+      : [];
+
+    return {
+      filters: (view?.filters ?? []) as Filter[],
+      sorts: (view?.sorts ?? []) as Sort[],
+      columnOrder,
+      hiddenColumnIds,
+    };
+  }, [view, columns]);
+
   // ─── Build Filter + Sort Input ─────────────────────────────────────────
   const rowQueryInput = useMemo(() => {
     const base: {
@@ -42,11 +57,11 @@ export function useTableData(tableId: string, viewId?: string) {
       sorts?: Sort[];
     } = { tableId, limit: 100 };
 
-    if (view?.filters) base.filters = view.filters as Filter[];
-    if (view?.sorts) base.sorts = view.sorts as Sort[];
+    if (viewConfig.filters.length > 0) base.filters = viewConfig.filters;
+    if (viewConfig.sorts.length > 0) base.sorts = viewConfig.sorts;
 
     return base;
-  }, [tableId, view]);
+  }, [tableId, viewConfig.filters, viewConfig.sorts]);
 
   // ─── Fetch Rows ────────────────────────────────────────────────────────
   const {
@@ -74,6 +89,22 @@ export function useTableData(tableId: string, viewId?: string) {
     },
     onError: (err) => console.error("❌ Failed to add column", err),
   });
+
+  // ─── Debounced Cell Update Map ─────────────────────────────────────────
+  const debouncedMutations = useMemo(() => {
+    const cache = new Map<string, (value: string) => void>();
+
+    return (rowId: string, columnId: string) => {
+      const key = `${rowId}::${columnId}`;
+      if (!cache.has(key)) {
+        const fn = debounce((value: string) => {
+          updateCellMutation.mutate({ rowId, columnId, value });
+        }, 500);
+        cache.set(key, fn);
+      }
+      return cache.get(key)!;
+    };
+  }, []);
 
   // ─── Normalize Rows ────────────────────────────────────────────────────
   useEffect(() => {
@@ -104,7 +135,7 @@ export function useTableData(tableId: string, viewId?: string) {
       };
     });
 
-    void updateCellMutation.mutate({ rowId, columnId, value });
+    debouncedMutations(rowId, columnId)(value);
   };
 
   const addRow = () => {
@@ -130,6 +161,7 @@ export function useTableData(tableId: string, viewId?: string) {
   return {
     rowsById,
     columns,
+    viewConfig,
     loading: loadingColumns || loadingRows,
     isFetchingNextPage,
     hasNextPage,

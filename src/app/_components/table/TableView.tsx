@@ -12,6 +12,7 @@ export const TableView = ({ tableId, viewId }: Props) => {
   const {
     rowsById,
     columns,
+    viewConfig, // NEW
     loading,
     fetchNextPage,
     hasNextPage,
@@ -38,6 +39,7 @@ export const TableView = ({ tableId, viewId }: Props) => {
     <EditableTable
       rows={rows}
       columns={columns}
+      viewConfig={viewConfig} // ✅ NEW
       fetchNextPage={fetchNextPage}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
