@@ -189,20 +189,18 @@ export const VirtualizedTableBody = ({
 
       {/* Render actual headers using TanStack HeaderGroups */}
       {table.getHeaderGroups().map((group) =>
-        group.headers.map((header) => {
-          const colIndex = visibleColumns.findIndex((c) => c.id === header.column.id);
-          const virtualCol = vCols.find((vc) => vc.index === colIndex);
-          if (!virtualCol) return null;
+        vCols.map((vc) => {
+            const isRightmost = vc.index === visibleColumns.length;
+            const header = group.headers[vc.index];
 
-          const isRightmost = colIndex === visibleColumns.length;
-          return (
+            return (
             <div
-              key={header.id}
-              style={{
+                key={vc.key}
+                style={{
                 position: "absolute",
                 top: 0,
-                left: virtualCol.start + 40,
-                width: virtualCol.size,
+                left: vc.start + 40,
+                width: vc.size,
                 height: 40,
                 padding: "0 8px",
                 background: "white",
@@ -210,17 +208,18 @@ export const VirtualizedTableBody = ({
                 zIndex: 1,
                 display: "flex",
                 alignItems: "center",
-              }}
+                }}
             >
-              {isRightmost ? (
+                {isRightmost ? (
                 <AddColumnForm onAddColumn={addColumn} />
-              ) : (
-                flexRender(header.column.columnDef.header, header.getContext())
-              )}
+                ) : (
+                header && flexRender(header.column.columnDef.header, header.getContext())
+                )}
             </div>
-          );
+            );
         })
-      )}
+        )}
+
 
       {/* Render table rows and cells */}
       {vRows.map((vr) => {
