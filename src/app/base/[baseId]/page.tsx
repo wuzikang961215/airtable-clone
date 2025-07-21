@@ -13,7 +13,7 @@ import {
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { api } from "~/trpc/react";
-import { TableView } from "~/app/_components/TableView";
+import { TableView } from "~/app/_components/table/TableView";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -197,7 +197,7 @@ export default function BaseTabsPage() {
         </div>
 
         {/* Table Content */}
-        <div className="flex-1 bg-white overflow-auto px-6 py-4 text-sm">
+        <div className="flex-1 bg-white overflow-auto text-sm">
           {tables.map((t) => (
             <div key={t.id} className={activeTableId === t.id ? "block" : "hidden"}>
               <TableView tableId={t.id} />

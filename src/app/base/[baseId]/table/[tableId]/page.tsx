@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { HydrateClient } from "~/trpc/server";
 import { db } from "~/server/db";
-import { TableView } from "~/app/_components/TableView";
+import { TableView } from "~/app/_components/table/TableView";
 
 export default async function Page({
   params,

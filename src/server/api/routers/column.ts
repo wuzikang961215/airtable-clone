@@ -27,24 +27,45 @@ export const columnRouter = createTRPCRouter({
       });
     }),
 
-  add: protectedProcedure
-    .input(z.object({
-      tableId: z.string(),
-      name: z.string().min(1),
-      type: z.enum(["text", "number"]),
-    }))
+    add: protectedProcedure
+    .input(
+      z.object({
+        tableId: z.string(),
+        name: z.string().min(1),
+        type: z.enum(["text", "number"]),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const currentCount = await ctx.prisma.column.count({
         where: { tableId: input.tableId, isDeleted: false },
       });
-
-      return await ctx.prisma.column.create({
-        data: {
-          tableId: input.tableId,
-          name: input.name,
-          type: input.type,
-          order: currentCount,
-        },
-      });
-    }),
+  
+      const [newColumn, existingRows] = await Promise.all([
+        ctx.prisma.column.create({
+          data: {
+            tableId: input.tableId,
+            name: input.name,
+            type: input.type,
+            order: currentCount,
+          },
+        }),
+        ctx.prisma.row.findMany({
+          where: { tableId: input.tableId, isDeleted: false },
+          select: { id: true },
+        }),
+      ]);
+  
+      if (existingRows.length > 0) {
+        await ctx.prisma.cell.createMany({
+          data: existingRows.map((row) => ({
+            rowId: row.id,
+            columnId: newColumn.id,
+            value: "",
+          })),
+          skipDuplicates: true,
+        });
+      }
+  
+      return newColumn;
+    }),  
 });
