@@ -231,7 +231,7 @@ export const EditableTable = ({
                   >
                     {isEditing ? (
                       <CellEditor
-                        value={typeof cellValue === "string" || typeof cellValue === "number" ? String(cellValue) : ""}
+                      value={typeof cellValue === "string" || typeof cellValue === "number" ? String(cellValue) : ""}
                         onChange={(newVal) => updateCell(cellKey.rowId, cellKey.columnId, newVal)}
                         onBlur={() => setEditingCell(null)}
                       />
