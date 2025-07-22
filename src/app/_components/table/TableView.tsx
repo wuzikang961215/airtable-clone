@@ -1,19 +1,18 @@
 "use client";
 
+import { useEffect, useState, useMemo } from "react";
+import { api } from "~/trpc/react";
 import { EditableTable } from "./EditableTable";
 import { useTableData } from "~/hooks/useTableData";
 import { ViewSelector } from "./ViewSelector";
-import { useEffect, useMemo, useState } from "react";
-import { api } from "~/trpc/react";
 
-
-type Props = {
+type TableViewProps = {
   tableId: string;
+  searchTerm: string;
   onActiveViewChange?: (view: { id: string; name: string }) => void;
 };
 
-export const TableView = ({ tableId, onActiveViewChange }: Props) => {
-
+export const TableView = ({ tableId, searchTerm, onActiveViewChange }: TableViewProps) => {
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
 
   const { data: views = [], isLoading: loadingViews } = api.view.getByTable.useQuery(
@@ -98,6 +97,7 @@ export const TableView = ({ tableId, onActiveViewChange }: Props) => {
             updateCell={updateCell}
             addRow={addRow}
             addColumn={addColumn}
+            searchTerm={searchTerm} // ✅ passed directly from props
           />
         ) : (
           <div className="p-4 text-gray-500">

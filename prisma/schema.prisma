@@ -112,6 +112,7 @@ model View {
   filters       Json
   sorts         Json
   hiddenColumns Json
+  searchTerm   String?  // ✅ ADD THIS
   columnOrder   Json           // ✅ Add this line
   table         Table          @relation(fields: [tableId], references: [id])
   type          String   @default("grid")

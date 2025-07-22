@@ -1,18 +1,17 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import type { Row, Column, Table } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
-import { CellEditor } from "../CellEditor";
 import { AddColumnForm } from "../AddColumnForm";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { RowHeader } from "./RowHeader";
+import { CellRenderer } from "./CellRenderer";
 
 type CellKey = { rowId: string; columnId: string };
 
 type Props = {
-  table: Table<{id: string; [key: string]: string;}>;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  tableRows: Row<{ id: string; [key: string]: string }>[];
-  visibleColumns: Column<{ id: string; [key: string]: string }, unknown>[];
+  table: Table<{ id: string;[key: string]: string }>;
+  tableRows: Row<{ id: string;[key: string]: string }>[];
+  visibleColumns: Column<{ id: string;[key: string]: string }, unknown>[];
   vRows: VirtualItem[];
   vCols: VirtualItem[];
   updateCell: (rowId: string, columnId: string, value: string) => void;
@@ -22,92 +21,11 @@ type Props = {
   setEditingCell: (cell: CellKey | null) => void;
   addRow: () => void;
   addColumn: (name: string, type: "text" | "number") => void;
-};
-
-const VirtualCell = ({
-  isSelected,
-  isEditing,
-  cellKey,
-  cellValue,
-  updateCell,
-  setSelectedCell,
-  setEditingCell,
-  getNextCellKey,
-  style,
-}: {
-  isSelected: boolean;
-  isEditing: boolean;
-  cellKey: CellKey;
-  cellValue: unknown;
-  updateCell: (rowId: string, columnId: string, value: string) => void;
-  setSelectedCell: (cell: CellKey) => void;
-  setEditingCell: (cell: CellKey | null) => void;
-  getNextCellKey: (key: CellKey, dir: "right" | "left" | "down" | "up") => CellKey | null;
-  style: React.CSSProperties;
-}) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isSelected) ref.current?.focus();
-  }, [isSelected]);
-
-  return (
-    <div
-      ref={ref}
-      tabIndex={0}
-      onFocus={() => setSelectedCell(cellKey)}
-      onClick={() => setSelectedCell(cellKey)}
-      onDoubleClick={() => setEditingCell(cellKey)}
-      onKeyDown={(e) => {
-        const keyMap: Record<string, "right" | "left" | "down" | "up"> = {
-          ArrowRight: "right",
-          ArrowLeft: "left",
-          ArrowDown: "down",
-          ArrowUp: "up",
-        };
-
-        if (e.key === "Enter") {
-          setEditingCell(cellKey);
-          e.preventDefault();
-        } else if (e.key === "Tab") {
-          const dir = e.shiftKey ? "left" : "right";
-          const next = getNextCellKey(cellKey, dir);
-          if (next) setSelectedCell(next);
-          e.preventDefault();
-        } else {
-            const direction = keyMap[e.key];
-            if (direction) {
-              const next = getNextCellKey(cellKey, direction);
-              if (next) setSelectedCell(next);
-              e.preventDefault();
-            }
-        }
-      }}
-      style={style}
-      title={typeof cellValue === "string" || typeof cellValue === "number" ? String(cellValue) : undefined}
-    >
-      {isEditing ? (
-        <CellEditor
-          value={typeof cellValue === "string" || typeof cellValue === "number" ? String(cellValue) : ""}
-          onChange={(newVal) => {
-            if (newVal !== cellValue) {
-              updateCell(cellKey.rowId, cellKey.columnId, newVal);
-            }
-          }}
-          onBlur={() => setEditingCell(null)}
-        />
-      ) : (
-        <span className="truncate block w-full">
-          {typeof cellValue === "string" || typeof cellValue === "number" ? cellValue : ""}
-        </span>
-      )}
-    </div>
-  );
+  searchTerm: string;
 };
 
 export const VirtualizedTableBody = ({
   table,
-  containerRef,
   tableRows,
   visibleColumns,
   vRows,
@@ -119,6 +37,7 @@ export const VirtualizedTableBody = ({
   setEditingCell,
   addRow,
   addColumn,
+  searchTerm,
 }: Props) => {
   const getNextCellKey = (
     current: CellKey,
@@ -162,7 +81,6 @@ export const VirtualizedTableBody = ({
     ) {
       const nextRowObj = tableRows[nextRow];
       const nextColObj = visibleColumns[nextCol];
-
       if (nextRowObj && nextColObj) {
         return {
           rowId: nextRowObj.original.id,
@@ -182,21 +100,19 @@ export const VirtualizedTableBody = ({
         position: "relative",
       }}
     >
-      {/* Top-left corner cell */}
       <div className="absolute top-0 left-0 w-10 h-10 bg-gray-50 border-r border-b flex items-center justify-center font-bold z-10">
         #
       </div>
 
-      {/* Render actual headers using TanStack HeaderGroups */}
       {table.getHeaderGroups().map((group) =>
         vCols.map((vc) => {
-            const isRightmost = vc.index === visibleColumns.length;
-            const header = group.headers[vc.index];
+          const isRightmost = vc.index === visibleColumns.length;
+          const header = group.headers[vc.index];
 
-            return (
+          return (
             <div
-                key={vc.key}
-                style={{
+              key={vc.key}
+              style={{
                 position: "absolute",
                 top: 0,
                 left: vc.start + 40,
@@ -208,20 +124,19 @@ export const VirtualizedTableBody = ({
                 zIndex: 1,
                 display: "flex",
                 alignItems: "center",
-                }}
+              }}
             >
-                {isRightmost ? (
+              {isRightmost ? (
                 <AddColumnForm onAddColumn={addColumn} />
-                ) : (
-                header && flexRender(header.column.columnDef.header, header.getContext())
-                )}
+              ) : (
+                header &&
+                flexRender(header.column.columnDef.header, header.getContext())
+              )}
             </div>
-            );
+          );
         })
-        )}
+      )}
 
-
-      {/* Render table rows and cells */}
       {vRows.map((vr) => {
         const isBottomRow = vr.index === tableRows.length;
         const row = tableRows[vr.index];
@@ -260,33 +175,22 @@ export const VirtualizedTableBody = ({
               const cellValue = cell.getValue();
 
               return (
-                <VirtualCell
+                <CellRenderer
                   key={cell.id}
+                  cell={cell}
                   isSelected={isSelected}
                   isEditing={isEditing}
-                  cellKey={cellKey}
-                  cellValue={cellValue}
-                  updateCell={updateCell}
                   setSelectedCell={setSelectedCell}
                   setEditingCell={setEditingCell}
+                  updateCell={updateCell}
                   getNextCellKey={getNextCellKey}
+                  searchTerm={searchTerm}
                   style={{
                     position: "absolute",
                     top: vr.start + 40,
                     left: vc.start + 40,
                     width: vc.size,
                     height: vr.size,
-                    padding: "0 8px",
-                    borderRight: "1px solid #eee",
-                    borderBottom: "1px solid #eee",
-                    display: "flex",
-                    alignItems: "center",
-                    background: "white",
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
-                    border: isSelected ? "2px solid #3b82f6" : "1px solid #eee",
-                    outline: "none",
                   }}
                 />
               );

@@ -30,6 +30,7 @@ type Props = {
   updateCell: (rowId: string, columnId: string, value: string) => void;
   addRow: () => void;
   addColumn: (name: string, type: "text" | "number") => void;
+  searchTerm?: string;
 };
 
 export const EditableTable = ({
@@ -42,6 +43,7 @@ export const EditableTable = ({
   updateCell,
   addRow,
   addColumn,
+  searchTerm,
 }: Props) => {
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -101,19 +103,19 @@ export const EditableTable = ({
   // Auto-select first cell
   useEffect(() => {
     if (!selectedCell && tableRows.length > 0 && visibleColumns.length > 0) {
-        const firstRow = tableRows[0];
-        const firstCol = visibleColumns[0];
-        
-        if (firstRow?.original?.id && firstCol?.id) {
-          setSelectedCell({
-            rowId: firstRow.original.id,
-            columnId: firstCol.id,
-          });
-        }        
+      const firstRow = tableRows[0];
+      const firstCol = visibleColumns[0];
+
+      if (firstRow?.original?.id && firstCol?.id) {
+        setSelectedCell({
+          rowId: firstRow.original.id,
+          columnId: firstCol.id,
+        });
+      }
     }
   }, [selectedCell, tableRows, visibleColumns]);
-  
-  
+
+
 
   useCellNavigation({
     selectedCell,
@@ -156,6 +158,7 @@ export const EditableTable = ({
         setEditingCell={setEditingCell}
         addRow={addRow}
         addColumn={addColumn}
+        searchTerm={searchTerm}
       />
       {isFetchingNextPage && (
         <div className="text-center p-2 text-gray-500">Loading more…</div>
