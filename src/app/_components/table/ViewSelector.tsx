@@ -1,4 +1,4 @@
- 
+
 "use client";
 
 import { useState } from "react";
@@ -187,9 +187,9 @@ export function ViewSelector({
                   }
                 );
               }}
-              disabled={!newViewName || createView.status === "loading"}
+              disabled={!newViewName || createView.isPending}
             >
-              {createView.status === "loading" ? "Creating..." : "Create view"}
+              {createView.isPending ? "Creating..." : "Create view"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -21,19 +21,37 @@ type Sort = {
 function buildWhereFromFilters(filters: Filter[] = []) {
   if (filters.length === 0) return undefined;
 
+  const mapped = filters.map((f) => {
+    if (f.columnId === "__ALL__") {
+      // global search — match value in *any* column
+      return {
+        OR: [
+          {
+            value: {
+              contains: f.value,
+            },
+          },
+        ],
+      };
+    }
+
+    return {
+      columnId: f.columnId,
+      value: {
+        [f.operator === "contains" ? "contains" : "equals"]: f.value,
+      },
+    };
+  });
+
   return {
     cells: {
       some: {
-        AND: filters.map((f) => ({
-          columnId: f.columnId,
-          value: {
-            [f.operator === "contains" ? "contains" : "equals"]: f.value,
-          },
-        })),
+        AND: mapped,
       },
     },
   };
 }
+
 
 
 function buildOrderByFromSorts(_sorts: Sort[] = []) {
