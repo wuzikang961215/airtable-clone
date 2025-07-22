@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+ 
 "use client";
 
 import { useState } from "react";
@@ -187,9 +187,9 @@ export function ViewSelector({
                   }
                 );
               }}
-              disabled={!newViewName || createView.isLoading}
+              disabled={!newViewName || createView.status === "loading"}
             >
-              {createView.isLoading ? "Creating..." : "Create view"}
+              {createView.status === "loading" ? "Creating..." : "Create view"}
             </Button>
           </DialogFooter>
         </DialogContent>
