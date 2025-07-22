@@ -8,11 +8,11 @@ import { ViewSelector } from "./ViewSelector";
 
 type TableViewProps = {
   tableId: string;
-  searchTerm: string;
+  searchTerm?: string; // ✅ 改为可选
   onActiveViewChange?: (view: { id: string; name: string }) => void;
 };
 
-export const TableView = ({ tableId, searchTerm, onActiveViewChange }: TableViewProps) => {
+export const TableView = ({ tableId, searchTerm = "", onActiveViewChange }: TableViewProps) => {
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
 
   const { data: views = [], isLoading: loadingViews } = api.view.getByTable.useQuery(

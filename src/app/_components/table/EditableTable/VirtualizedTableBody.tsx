@@ -10,6 +10,7 @@ type CellKey = { rowId: string; columnId: string };
 
 type Props = {
   table: Table<{ id: string;[key: string]: string }>;
+  containerRef: React.RefObject<HTMLDivElement | null>; // ✅ 添加这一行
   tableRows: Row<{ id: string;[key: string]: string }>[];
   visibleColumns: Column<{ id: string;[key: string]: string }, unknown>[];
   vRows: VirtualItem[];

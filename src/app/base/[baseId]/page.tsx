@@ -107,14 +107,12 @@ export default function BaseTabsPage() {
       updateView.mutate(
         {
           viewId: activeViewId,
-          searchTerm: term,
         },
         {
           onSuccess: () => {
             void utils.view.getById.invalidate({ viewId: activeViewId });
             void utils.row.getByTable.invalidate({
               tableId: activeTableId!,
-              viewId: activeViewId,
             });
           },
         }

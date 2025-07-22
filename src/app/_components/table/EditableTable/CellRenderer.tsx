@@ -5,7 +5,7 @@ import type { Cell } from "@tanstack/react-table";
 type CellKey = { rowId: string; columnId: string };
 
 type Props = {
-  cell: Cell<Record<string, unknown>, unknown>;
+  cell: Cell<{ id: string;[key: string]: string }, unknown>;
   isSelected: boolean;
   isEditing: boolean;
   setSelectedCell: (cell: CellKey) => void;
