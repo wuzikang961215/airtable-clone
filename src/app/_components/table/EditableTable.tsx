@@ -30,7 +30,7 @@ type Props = {
   updateCell: (rowId: string, columnId: string, value: string) => void;
   addRow: () => void;
   addColumn: (name: string, type: "text" | "number") => void;
-  searchTerm?: string;
+  searchTerm: string;
 };
 
 export const EditableTable = ({
