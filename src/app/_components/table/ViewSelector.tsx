@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 "use client";
 
 import { useState } from "react";
@@ -9,9 +10,32 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "~/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogFooter } from "~/components/ui/dialog";
-import { LayoutGrid, Plus, Calendar, KanbanSquare, List, Lock, Users, User } from "lucide-react";
-import { DialogTitle } from "~/components/ui/dialog"; 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
+  LayoutGrid,
+  Plus,
+  Calendar,
+  KanbanSquare,
+  List,
+  Lock,
+  Users,
+  User,
+} from "lucide-react";
+import { api } from "~/trpc/react";
+import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
+import type { AppRouter } from "~/server/api/root";
+import type { UseMutationResult } from "@tanstack/react-query";
+import type { TRPCClientError } from "@trpc/client";
+
+// ─── Types ─────────────────────────────────────────────
+type CreateViewInput = inferProcedureInput<AppRouter["view"]["create"]>;
+type CreateViewOutput = inferProcedureOutput<AppRouter["view"]["create"]>;
 
 const VIEW_TYPES = [
   { label: "Grid", icon: LayoutGrid },
@@ -52,6 +76,14 @@ export function ViewSelector({
   const [selectedType, setSelectedType] = useState("Grid");
   const [selectedPermission, setSelectedPermission] = useState("Collaborative");
 
+
+  const createView = (api.view.create.useMutation() as unknown) as UseMutationResult<
+    CreateViewOutput,
+    TRPCClientError<AppRouter>,
+    CreateViewInput,
+    unknown
+  >;
+
   return (
     <div className="w-56 border-r px-4 py-3 bg-gray-50 text-sm flex flex-col space-y-3">
       {/* Create new view */}
@@ -88,9 +120,8 @@ export function ViewSelector({
           <button
             key={v.id}
             onClick={() => onViewChange(v.id)}
-            className={`flex items-center px-2 py-1 rounded ${
-              currentViewId === v.id ? "bg-gray-200 font-medium" : "hover:bg-gray-100"
-            }`}
+            className={`flex items-center px-2 py-1 rounded ${currentViewId === v.id ? "bg-gray-200 font-medium" : "hover:bg-gray-100"
+              }`}
           >
             <LayoutGrid className="w-4 h-4 mr-2 text-blue-500" />
             {v.name}
@@ -101,9 +132,10 @@ export function ViewSelector({
       {/* Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DialogContent>
-        <DialogHeader>
+          <DialogHeader>
             <DialogTitle>Create {selectedType} View</DialogTitle>
-        </DialogHeader>
+          </DialogHeader>
+
           <Input
             placeholder="Name this view"
             value={newViewName}
@@ -127,18 +159,37 @@ export function ViewSelector({
           <DialogFooter>
             <Button
               onClick={() => {
-                const newView = {
-                  id: `view-${Date.now()}`,
-                  name: newViewName || `${selectedType} view`,
-                  type: selectedType,
-                };
-                onCreateView(newView);
-                setCreateModalOpen(false);
-                setNewViewName("");
+                createView.mutate(
+                  {
+                    tableId,
+                    name: newViewName || `${selectedType} view`,
+                    type: selectedType,
+                  },
+                  {
+                    onSuccess: (view: CreateViewOutput) => {
+                      onCreateView(view);
+                      setCreateModalOpen(false);
+                      setNewViewName("");
+                    },
+                    onError: (err: unknown) => {
+                      if (err instanceof Error) {
+                        console.error("❌ Failed to create view", err.message);
+                      } else if (typeof err === "string") {
+                        console.error("❌ Failed to create view", err);
+                      } else {
+                        try {
+                          console.error("❌ Failed to create view", JSON.stringify(err));
+                        } catch {
+                          console.error("❌ Failed to create view", "[Unknown error object]");
+                        }
+                      }
+                    },
+                  }
+                );
               }}
-              disabled={!newViewName}
+              disabled={!newViewName || createView.isLoading}
             >
-              Create view
+              {createView.isLoading ? "Creating..." : "Create view"}
             </Button>
           </DialogFooter>
         </DialogContent>

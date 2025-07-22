@@ -6,18 +6,22 @@ import { ViewSelector } from "./ViewSelector";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 
+
 type Props = {
   tableId: string;
   onActiveViewChange?: (view: { id: string; name: string }) => void;
 };
 
 export const TableView = ({ tableId, onActiveViewChange }: Props) => {
+
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
 
   const { data: views = [], isLoading: loadingViews } = api.view.getByTable.useQuery(
     { tableId },
     { enabled: !!tableId }
   );
+
+  const utils = api.useUtils();
 
   useEffect(() => {
     if (views.length > 0 && views[0]?.id) {
@@ -76,7 +80,8 @@ export const TableView = ({ tableId, onActiveViewChange }: Props) => {
         views={views}
         currentViewId={activeViewId}
         onViewChange={(id) => setActiveViewId(id)}
-        onCreateView={(newView) => {
+        onCreateView={(newView: { id: string }) => {
+          void utils.view.getByTable.invalidate({ tableId });
           setActiveViewId(newView.id);
         }}
       />
