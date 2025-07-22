@@ -3,19 +3,38 @@
 import { EditableTable } from "./EditableTable";
 import { useTableData } from "~/hooks/useTableData";
 import { ViewSelector } from "./ViewSelector";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "~/trpc/react";
 
 type Props = {
   tableId: string;
-  viewId?: string; // ✅ Support optional viewId
+  onActiveViewChange?: (view: { id: string; name: string }) => void;
 };
 
-export const TableView = ({ tableId }: Props) => {
-  const [views, setViews] = useState([
-    { id: "view-1", name: "Grid view", type: "Grid" },
-    { id: "view-2", name: "Grid 2", type: "Grid" },
-  ]);
-  const [activeViewId, setActiveViewId] = useState("view-1");
+export const TableView = ({ tableId, onActiveViewChange }: Props) => {
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+
+  const { data: views = [], isLoading: loadingViews } = api.view.getByTable.useQuery(
+    { tableId },
+    { enabled: !!tableId }
+  );
+
+  useEffect(() => {
+    if (views.length > 0 && views[0]?.id) {
+      setActiveViewId(views[0].id);
+    }
+  }, [tableId, views]);
+
+  const activeView = useMemo(
+    () => views.find((v) => v.id === activeViewId),
+    [views, activeViewId]
+  );
+
+  useEffect(() => {
+    if (activeView && onActiveViewChange) {
+      onActiveViewChange(activeView);
+    }
+  }, [activeView, onActiveViewChange]);
 
   const {
     rowsById,
@@ -28,7 +47,7 @@ export const TableView = ({ tableId }: Props) => {
     updateCell,
     addRow,
     addColumn,
-  } = useTableData(tableId, activeViewId);
+  } = useTableData(tableId, activeViewId ?? "");
 
   const isReady =
     !loading &&
@@ -39,6 +58,17 @@ export const TableView = ({ tableId }: Props) => {
 
   const rows = Object.values(rowsById);
 
+  const safeViewConfig = useMemo(() => ({
+    columnOrder: (viewConfig?.columnOrder ?? []).filter(
+      (v): v is string => typeof v === "string"
+    ),
+    hiddenColumnIds: viewConfig?.hiddenColumnIds ?? [],
+  }), [viewConfig]);
+
+  if (!activeViewId || loadingViews) {
+    return <div className="p-4 text-gray-500">Loading view...</div>;
+  }
+
   return (
     <div className="flex h-full">
       <ViewSelector
@@ -47,7 +77,6 @@ export const TableView = ({ tableId }: Props) => {
         currentViewId={activeViewId}
         onViewChange={(id) => setActiveViewId(id)}
         onCreateView={(newView) => {
-          setViews((prev) => [...prev, newView]);
           setActiveViewId(newView.id);
         }}
       />
@@ -57,7 +86,7 @@ export const TableView = ({ tableId }: Props) => {
           <EditableTable
             rows={rows}
             columns={columns}
-            viewConfig={viewConfig}
+            viewConfig={safeViewConfig}
             fetchNextPage={fetchNextPage}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
@@ -66,10 +95,11 @@ export const TableView = ({ tableId }: Props) => {
             addColumn={addColumn}
           />
         ) : (
-          <div className="p-4 text-gray-500">Loading...</div>
+          <div className="p-4 text-gray-500">
+            {loading ? "Loading table data..." : "No columns found"}
+          </div>
         )}
       </div>
     </div>
   );
 };
-

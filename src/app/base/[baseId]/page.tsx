@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Table,
@@ -24,9 +24,9 @@ import {
 export default function BaseTabsPage() {
   const params = useParams();
   const baseId = typeof params.baseId === "string" ? params.baseId : null;
-
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [activeViewName, setActiveViewName] = useState("Grid view");
 
   const utils = api.useUtils();
 
@@ -41,6 +41,13 @@ export default function BaseTabsPage() {
     baseId: baseId!,
   });
 
+  const activeTableId = selectedTableId ?? tables?.[0]?.id ?? null;
+
+  const { data: columns = [] } = api.column.getByTable.useQuery(
+    { tableId: activeTableId ?? "" },
+    { enabled: !!activeTableId }
+  );
+
   const createTable = api.table.create.useMutation({
     onSuccess: async () => {
       await utils.table.getByBase.invalidate({ baseId: baseId! });
@@ -54,19 +61,37 @@ export default function BaseTabsPage() {
     },
   });
 
+  const updateView = api.view.updateConfig.useMutation();
+
   const handleAddTable = async () => {
     const name = prompt("Enter new table name:");
     if (name && baseId) {
       const newTable = await createTable.mutateAsync({ baseId, name });
       setSelectedTableId(newTable.id);
+      setActiveViewName("Grid view"); // default assumption
     }
   };
+
+  const handleAddSort = (colId: string) => {
+    const currentTable = tables?.find((t) => t.id === activeTableId);
+    const viewId = currentTable?.views?.[0]?.id;
+    if (!viewId) return;
+    updateView.mutate({
+      viewId,
+      sorts: [{ columnId: colId, direction: "asc" }],
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedTableId && tables?.length) {
+      setSelectedTableId(tables[0]!.id);
+      setActiveViewName(tables[0]?.views?.[0]?.name ?? "Grid view");
+    }
+  }, [tables, selectedTableId]);
 
   if (!baseId || loadingBase || loadingTables || !base || !tables) {
     return <p className="p-6 text-gray-500">Loading...</p>;
   }
-
-  const activeTableId = selectedTableId ?? tables[0]?.id;
 
   return (
     <div className="flex min-h-screen">
@@ -83,9 +108,6 @@ export default function BaseTabsPage() {
         <div className="border-b px-6 py-2 bg-white flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-semibold">{base.name}</h2>
-            <Button variant="ghost" size="sm">
-              + Add or import
-            </Button>
           </div>
           <div className="flex items-center gap-3">
             <Bell className="text-gray-400 w-4 h-4" />
@@ -137,7 +159,11 @@ export default function BaseTabsPage() {
                       key={t.id}
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSelectedTableId(t.id)}
+                      onClick={() => {
+                        setSelectedTableId(t.id);
+                        const viewName = t.views?.[0]?.name ?? "Grid view";
+                        setActiveViewName(viewName);
+                      }}
                       className="rounded-md px-4 py-1 text-sm text-[#b35c4e] hover:bg-[#ffd7c4]"
                     >
                       {t.name}
@@ -146,8 +172,6 @@ export default function BaseTabsPage() {
                 </div>
               );
             })}
-
-            {/* ➕ Add Table */}
             <Button
               variant="ghost"
               size="icon"
@@ -160,39 +184,84 @@ export default function BaseTabsPage() {
         </div>
 
         {/* Grid Controls */}
-        <div className="px-6 py-2 flex items-center justify-between text-sm border-b bg-gray-50">
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <Button variant="ghost" size="sm">
-              Hide fields
-            </Button>
-            <Button variant="ghost" size="sm">
-              Filter
-            </Button>
-            <Button variant="ghost" size="sm">
-              Group
-            </Button>
-            <Button variant="ghost" size="sm">
-              Sort
-            </Button>
-            <Button variant="ghost" size="sm">
-              Color
-            </Button>
-            <Button variant="ghost" size="sm">
-              Share and sync
-            </Button>
+        <div className="px-6 py-2 flex items-center justify-between text-sm border-b bg-white">
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-1 text-gray-700 font-medium">
+                  <LayoutGrid className="w-4 h-4 text-gray-600" />
+                  {activeViewName}
+                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-72">
+                <DropdownMenuItem disabled className="flex flex-col items-start gap-1 cursor-default">
+                  <span className="text-sm font-medium">👥 Collaborative view</span>
+                  <span className="text-xs text-muted-foreground">Editors and up can edit the view configuration</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-sm">➡️ Assign as personal view</DropdownMenuItem>
+                <div className="border-t my-1" />
+                <DropdownMenuItem className="text-sm">✏️ Rename view</DropdownMenuItem>
+                <DropdownMenuItem className="text-sm">ℹ️ Edit view description</DropdownMenuItem>
+                <div className="border-t my-1" />
+                <DropdownMenuItem className="text-sm">📄 Duplicate view</DropdownMenuItem>
+                <DropdownMenuItem className="text-sm">
+                  ⚙️ Copy another view&apos;s configuration
+                </DropdownMenuItem>
+                <div className="border-t my-1" />
+                <DropdownMenuItem className="text-sm">⬇️ Download CSV</DropdownMenuItem>
+                <DropdownMenuItem className="text-sm">🖨️ Print view</DropdownMenuItem>
+                <div className="border-t my-1" />
+                <DropdownMenuItem className="text-sm text-red-600">🗑️ Delete view</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Right side: Actions */}
+          <div className="flex items-center gap-4 text-xs text-gray-700">
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Hide fields</Button>
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Filter</Button>
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Group</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
+                  Sort
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64">
+                <div className="px-3 py-2 text-xs text-muted-foreground font-semibold">Sort by</div>
+                <div className="px-3 py-1">
+                  <Input placeholder="Find a field" className="h-7 text-xs" />
+                </div>
+                {columns.map((col) => (
+                  <DropdownMenuItem
+                    key={col.id}
+                    onClick={() => handleAddSort(col.id)}
+                    className="flex items-center gap-2 text-sm text-gray-700"
+                  >
+                    <span className="text-xs">A</span> {col.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Color</Button>
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Share and sync</Button>
+            <Input
+              placeholder="Search"
+              className="w-40 h-8 text-sm placeholder:text-gray-400 bg-gray-100 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-400"
+            />
           </div>
         </div>
 
         {/* Table Content */}
         <div className="flex flex-1 bg-white overflow-hidden">
-
-          {/* Active table view */}
           <div className="flex-1 overflow-auto">
-            {tables.map((t) => (
-              <div key={t.id} className={activeTableId === t.id ? "block" : "hidden"}>
-                <TableView tableId={t.id} />
-              </div>
-            ))}
+            {activeTableId && (
+              <TableView
+                tableId={activeTableId}
+                onActiveViewChange={(view) => setActiveViewName(view.name)}
+              />
+            )}
           </div>
         </div>
       </main>

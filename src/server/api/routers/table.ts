@@ -15,10 +15,16 @@ export const tableRouter = createTRPCRouter({
           id: true,
           name: true,
           createdAt: true,
-          _count: {
-            select: { columns: true, rows: true }, // optional summary
+          views: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
-        },
+          _count: {
+            select: { columns: true, rows: true },
+          },
+        },        
       });
     }),
 

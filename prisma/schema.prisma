@@ -114,4 +114,5 @@ model View {
   hiddenColumns Json
   columnOrder   Json           // ✅ Add this line
   table         Table          @relation(fields: [tableId], references: [id])
+  type          String   @default("grid")
 }

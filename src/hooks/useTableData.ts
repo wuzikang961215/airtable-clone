@@ -1,21 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import debounce from "lodash.debounce"; // ✅ 若报错需执行：npm i -D @types/lodash.debounce
+import debounce from "lodash.debounce";
 import { api } from "~/trpc/react";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 type Cell = { columnId: string; value: string };
 type Row = { id: string; cells: Cell[] };
-
-type FlatRow = {
-  id: string;
-  [columnId: string]: string;
-};
-
+type FlatRow = { id: string; [columnId: string]: string };
 type Filter = { columnId: string; operator: "equals" | "contains"; value: string };
 type Sort = { columnId: string; direction: "asc" | "desc" };
 
 export function useTableData(tableId: string, viewId?: string) {
   const [rowsById, setRowsById] = useState<Record<string, FlatRow>>({});
+  const [activeKey, setActiveKey] = useState<string>("");
+  const [skipNextRemoteOverwrite, setSkipNextRemoteOverwrite] = useState(false);
 
   const utils = api.useUtils();
 
@@ -32,12 +29,13 @@ export function useTableData(tableId: string, viewId?: string) {
   );
 
   const viewConfig = useMemo(() => {
-    const columnOrder = Array.isArray(view?.columnOrder)
-      ? (view?.columnOrder as string[]) // ✅ 安全断言为 string[]
-      : columns.map((c) => c.id);
+    const columnOrder =
+      Array.isArray(view?.columnOrder) && view.columnOrder.length > 0
+        ? view.columnOrder
+        : columns.map((c) => c.id);
 
     const hiddenColumnIds = Array.isArray(view?.hiddenColumns)
-      ? (view?.hiddenColumns as string[]) // ✅ 安全断言为 string[]
+      ? (view?.hiddenColumns as string[])
       : [];
 
     return {
@@ -48,20 +46,16 @@ export function useTableData(tableId: string, viewId?: string) {
     };
   }, [view, columns]);
 
-  // ─── Build Filter + Sort Input ─────────────────────────────────────────
+  // ─── Build Query Key ───────────────────────────────────────────────────
   const rowQueryInput = useMemo(() => {
-    const base: {
-      tableId: string;
-      limit: number;
-      filters?: Filter[];
-      sorts?: Sort[];
-    } = { tableId, limit: 100 };
-
-    if (viewConfig.filters.length > 0) base.filters = viewConfig.filters;
-    if (viewConfig.sorts.length > 0) base.sorts = viewConfig.sorts;
-
-    return base;
-  }, [tableId, viewConfig.filters, viewConfig.sorts]);
+    return {
+      tableId,
+      viewId,
+      limit: 100,
+      filters: viewConfig.filters,
+      sorts: viewConfig.sorts,
+    };
+  }, [tableId, viewId, viewConfig.filters, viewConfig.sorts]);
 
   // ─── Fetch Rows ────────────────────────────────────────────────────────
   const {
@@ -72,15 +66,51 @@ export function useTableData(tableId: string, viewId?: string) {
     fetchNextPage,
   } = api.row.getByTable.useInfiniteQuery(rowQueryInput, {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    staleTime: Infinity,
+    gcTime: 60 * 1000,
   });
 
   // ─── Mutations ─────────────────────────────────────────────────────────
   const updateCellMutation = api.cell.update.useMutation({
-    onError: (err) => console.error("❌ Failed to update cell", err),
-  });
+    onMutate: async (newCell) => {
+      await utils.row.getByTable.cancel(rowQueryInput);
 
-  const addRowMutation = api.row.add.useMutation({
-    onError: (err) => console.error("❌ Failed to add row", err),
+      const previousData = utils.row.getByTable.getInfiniteData(rowQueryInput);
+
+      utils.row.getByTable.setInfiniteData(rowQueryInput, (old) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            rows: page.rows.map((row) => {
+              if (row.id !== newCell.rowId) return row;
+              return {
+                ...row,
+                cells: row.cells.map((cell) =>
+                  cell.columnId === newCell.columnId
+                    ? { ...cell, value: newCell.value }
+                    : cell
+                ),
+              };
+            }),
+          })),
+        };
+      });
+
+      return { previousData };
+    },
+
+    onError: (_err, _newCell, ctx) => {
+      if (ctx?.previousData) {
+        utils.row.getByTable.setInfiniteData(rowQueryInput, ctx.previousData);
+      }
+    },
+
+    onSettled: () => {
+      void utils.row.getByTable.invalidate(rowQueryInput);
+    },
   });
 
   const addColumnMutation = api.column.add.useMutation({
@@ -90,26 +120,13 @@ export function useTableData(tableId: string, viewId?: string) {
     onError: (err) => console.error("❌ Failed to add column", err),
   });
 
-  // ─── Debounced Cell Update Map ─────────────────────────────────────────
-  const debouncedMutations = useMemo(() => {
-    const cache = new Map<string, (value: string) => void>();
+  const addRowMutation = api.row.add.useMutation();
 
-    return (rowId: string, columnId: string) => {
-      const key = `${rowId}::${columnId}`;
-      if (!cache.has(key)) {
-        const fn = debounce((value: string) => {
-          updateCellMutation.mutate({ rowId, columnId, value });
-        }, 500);
-        cache.set(key, fn);
-      }
-      return cache.get(key)!;
-    };
-  }, []);
-
-  // ─── Normalize Rows ────────────────────────────────────────────────────
+  // ─── Normalize + Replace Rows ──────────────────────────────────────────
   useEffect(() => {
     if (!rowPages) return;
 
+    const newKey = `${tableId}:${viewId ?? ""}`;
     const updated: Record<string, FlatRow> = {};
 
     for (const page of rowPages.pages) {
@@ -122,8 +139,26 @@ export function useTableData(tableId: string, viewId?: string) {
       }
     }
 
-    setRowsById((prev) => ({ ...prev, ...updated }));
-  }, [rowPages]);
+    if (skipNextRemoteOverwrite) {
+      setSkipNextRemoteOverwrite(false);
+      return;
+    }
+
+    setRowsById((prev) => {
+      const merged: Record<string, FlatRow> = {};
+      for (const rowId in updated) {
+        merged[rowId] = {
+          id: rowId,
+          ...updated[rowId],
+          ...(prev[rowId] ?? {}),
+        };
+      }
+      return merged;
+    });
+    
+
+    setActiveKey(newKey);
+  }, [rowPages, tableId, viewId, JSON.stringify(viewConfig), skipNextRemoteOverwrite]);
 
   // ─── Actions ───────────────────────────────────────────────────────────
   const updateCell = (rowId: string, columnId: string, value: string) => {
@@ -135,7 +170,8 @@ export function useTableData(tableId: string, viewId?: string) {
       };
     });
 
-    debouncedMutations(rowId, columnId)(value);
+    setSkipNextRemoteOverwrite(true);
+    updateCellMutation.mutate({ rowId, columnId, value });
   };
 
   const addRow = () => {
@@ -157,7 +193,6 @@ export function useTableData(tableId: string, viewId?: string) {
     void addColumnMutation.mutate({ tableId, name, type });
   };
 
-  // ─── Return Interface ──────────────────────────────────────────────────
   return {
     rowsById,
     columns,
