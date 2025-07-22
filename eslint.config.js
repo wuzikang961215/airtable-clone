@@ -1,5 +1,6 @@
 import { FlatCompat } from "@eslint/eslintrc";
 import tseslint from "typescript-eslint";
+import prettier from "eslint-config-prettier"; // ✅ NEW
 
 const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
@@ -16,6 +17,7 @@ export default tseslint.config(
       ...tseslint.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
       ...tseslint.configs.stylisticTypeChecked,
+      prettier, // ✅ disables formatting rules that conflict with Prettier
     ],
     rules: {
       "@typescript-eslint/array-type": "off",

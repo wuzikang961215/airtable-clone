@@ -5,14 +5,16 @@ import { api } from "~/trpc/react";
 // ─── Types ───────────────────────────────────────────────────────────────
 type Cell = { columnId: string; value: string };
 type Row = { id: string; cells: Cell[] };
-type FlatRow = { id: string; [columnId: string]: string };
+type FlatRow = { id: string;[columnId: string]: string };
 type Filter = { columnId: string; operator: "equals" | "contains"; value: string };
 type Sort = { columnId: string; direction: "asc" | "desc" };
 
 export function useTableData(tableId: string, viewId?: string) {
-  const [rowsById, setRowsById] = useState<Record<string, FlatRow>>({});
-  const [activeKey, setActiveKey] = useState<string>("");
+  const [allRowsByKey, setAllRowsByKey] = useState<Record<string, Record<string, FlatRow>>>({});
   const [skipNextRemoteOverwrite, setSkipNextRemoteOverwrite] = useState(false);
+
+  const currentKey = `${tableId}:${viewId ?? ""}`;
+  const rowsById = allRowsByKey[currentKey] ?? {};
 
   const utils = api.useUtils();
 
@@ -74,7 +76,6 @@ export function useTableData(tableId: string, viewId?: string) {
   const updateCellMutation = api.cell.update.useMutation({
     onMutate: async (newCell) => {
       await utils.row.getByTable.cancel(rowQueryInput);
-
       const previousData = utils.row.getByTable.getInfiniteData(rowQueryInput);
 
       utils.row.getByTable.setInfiniteData(rowQueryInput, (old) => {
@@ -126,7 +127,6 @@ export function useTableData(tableId: string, viewId?: string) {
   useEffect(() => {
     if (!rowPages) return;
 
-    const newKey = `${tableId}:${viewId ?? ""}`;
     const updated: Record<string, FlatRow> = {};
 
     for (const page of rowPages.pages) {
@@ -144,29 +144,23 @@ export function useTableData(tableId: string, viewId?: string) {
       return;
     }
 
-    setRowsById((prev) => {
-      const merged: Record<string, FlatRow> = {};
-      for (const rowId in updated) {
-        merged[rowId] = {
-          id: rowId,
-          ...updated[rowId],
-          ...(prev[rowId] ?? {}),
-        };
-      }
-      return merged;
-    });
-    
-
-    setActiveKey(newKey);
+    setAllRowsByKey((prev) => ({
+      ...prev,
+      [currentKey]: updated,
+    }));
   }, [rowPages, tableId, viewId, JSON.stringify(viewConfig), skipNextRemoteOverwrite]);
 
   // ─── Actions ───────────────────────────────────────────────────────────
   const updateCell = (rowId: string, columnId: string, value: string) => {
-    setRowsById((prev) => {
-      const row = prev[rowId] ?? { id: rowId };
+    setAllRowsByKey((prev) => {
+      const existing = prev[currentKey] ?? {};
+      const row = existing[rowId] ?? { id: rowId };
       return {
         ...prev,
-        [rowId]: { ...row, [columnId]: value },
+        [currentKey]: {
+          ...existing,
+          [rowId]: { ...row, [columnId]: value },
+        },
       };
     });
 
@@ -183,7 +177,13 @@ export function useTableData(tableId: string, viewId?: string) {
           for (const cell of newRow.cells) {
             flatRow[cell.columnId] = cell.value ?? "";
           }
-          setRowsById((prev) => ({ ...prev, [newRow.id]: flatRow }));
+          setAllRowsByKey((prev) => ({
+            ...prev,
+            [currentKey]: {
+              ...(prev[currentKey] ?? {}),
+              [newRow.id]: flatRow,
+            },
+          }));
         },
       }
     );

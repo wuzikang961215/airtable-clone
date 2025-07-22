@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
 } from "../../../components/ui/dropdown-menu";
 
+
 export default function BaseTabsPage() {
   const params = useParams();
   const baseId = typeof params.baseId === "string" ? params.baseId : null;
