@@ -12,6 +12,7 @@ import {
   ChevronDown,
   X,
   ArrowUpDown,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -47,6 +48,8 @@ export default function BaseTabsPage() {
 
   const utils = api.useUtils();
   const updateView = api.view.updateConfig.useMutation();
+  const [tempHiddenColumns, setTempHiddenColumns] = useState<string[]>([]);
+  const [hideFieldsOpen, setHideFieldsOpen] = useState(false);
 
   const { data: base, isLoading: loadingBase } = api.base.getById.useQuery({
     baseId: baseId!,
@@ -87,8 +90,12 @@ export default function BaseTabsPage() {
     }
   }, [views, activeViewId]);
 
+  // Don't initialize tempHiddenColumns here - it will be set when dropdown opens
+
   useEffect(() => {
     setSearchTerm("");
+    // Reset hide fields dropdown state when switching views
+    setHideFieldsOpen(false);
   }, [selectedTableId, activeViewId]);
 
   const createTable = api.table.create.useMutation({
@@ -352,8 +359,270 @@ export default function BaseTabsPage() {
             </div>
 
             <div className="flex items-center gap-4 text-xs text-gray-700">
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Hide fields</Button>
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Filter</Button>
+              {/* Hide fields Dropdown */}
+              <DropdownMenu open={hideFieldsOpen} onOpenChange={(open) => {
+                setHideFieldsOpen(open);
+                // When opening, sync temp state with current view state
+                if (open) {
+                  const currentHidden = Array.isArray(view?.hiddenColumns) ? view.hiddenColumns as string[] : [];
+                  setTempHiddenColumns(currentHidden);
+                }
+              }}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
+                    Hide fields
+                    {view?.hiddenColumns && Array.isArray(view.hiddenColumns) && view.hiddenColumns.length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 text-xs rounded" style={{ backgroundColor: "#e5e7eb", color: "#4b5563" }}>
+                        {view.hiddenColumns.length}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80 p-4" align="start">
+                  <div className="space-y-3">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">Hide fields</h3>
+                      <div className="text-xs text-gray-500">
+                        {columns.length - tempHiddenColumns.length} of {columns.length} shown
+                      </div>
+                    </div>
+
+                    {/* Field list */}
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {columns.map((column) => {
+                        const isHidden = tempHiddenColumns.includes(column.id);
+                        return (
+                          <label
+                            key={column.id}
+                            className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!isHidden}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTempHiddenColumns(prev => prev.filter(id => id !== column.id));
+                                } else {
+                                  setTempHiddenColumns(prev => [...prev, column.id]);
+                                }
+                              }}
+                              className="rounded border-gray-300"
+                            />
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className="text-xs text-gray-500">
+                                {column.type === "number" ? "123" : "Aa"}
+                              </span>
+                              <span className="text-sm">{column.name}</span>
+                            </div>
+                            {isHidden && <EyeOff className="h-3 w-3 text-gray-400" />}
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {/* Quick actions */}
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setTempHiddenColumns([])}
+                        className="text-xs"
+                      >
+                        Show all
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setTempHiddenColumns(columns.map(c => c.id))}
+                        className="text-xs"
+                      >
+                        Hide all
+                      </Button>
+                    </div>
+
+                    {/* Apply button */}
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          // Reset to current view state
+                          const currentHidden = Array.isArray(view?.hiddenColumns) ? view.hiddenColumns as string[] : [];
+                          setTempHiddenColumns(currentHidden);
+                          setHideFieldsOpen(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (!activeViewId) return;
+                          updateView.mutate(
+                            { viewId: activeViewId, hiddenColumnIds: tempHiddenColumns },
+                            {
+                              onSuccess: () => {
+                                void utils.view.getById.invalidate({ viewId: activeViewId });
+                                void utils.view.getByTable.invalidate({ tableId: activeTableId });
+                                void utils.row.getByTable.invalidate({ tableId: activeTableId });
+                                setHideFieldsOpen(false);
+                              },
+                            }
+                          );
+                        }}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {/* Filter Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
+                    Filter
+                    {view?.filters && (view.filters as Filter[]).length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">
+                        {(view.filters as Filter[]).length}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80 p-4">
+                  <div className="space-y-3">
+                    {/* Show existing filters */}
+                    {view?.filters && (view.filters as Filter[]).length > 0 && (
+                      <div className="space-y-2 pb-3 border-b">
+                        <div className="text-sm font-medium">Active Filters</div>
+                        {(view.filters as Filter[]).map((filter, index) => {
+                          const column = columns.find(c => c.id === filter.columnId);
+                          return (
+                            <div key={index} className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded">
+                              <span>
+                                <strong>{column?.name}</strong> {filter.operator.replace(/_/g, ' ')} 
+                                {filter.value !== undefined && filter.value !== '' && ` "${filter.value}"`}
+                              </span>
+                              <button
+                                onClick={() => handleRemoveFilter()}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    <div className="text-sm font-medium">Add Filter</div>
+                    
+                    {/* Column Selection */}
+                    <div>
+                      <label className="text-xs text-gray-600 mb-1 block">Column</label>
+                      <Select value={filterColumn} onValueChange={setFilterColumn}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {columns.map((col) => (
+                            <SelectItem key={col.id} value={col.id}>
+                              {col.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Operator Selection */}
+                    {filterColumn && (
+                      <div>
+                        <label className="text-xs text-gray-600 mb-1 block">Condition</label>
+                        <Select value={filterOperator} onValueChange={setFilterOperator}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select condition" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(() => {
+                              const column = columns.find(c => c.id === filterColumn);
+                              if (column?.type === "number") {
+                                return (
+                                  <>
+                                    <SelectItem value="equals">Equals</SelectItem>
+                                    <SelectItem value="greater_than">Greater than</SelectItem>
+                                    <SelectItem value="less_than">Less than</SelectItem>
+                                    <SelectItem value="greater_equal">Greater than or equal</SelectItem>
+                                    <SelectItem value="less_equal">Less than or equal</SelectItem>
+                                    <SelectItem value="is_empty">Is empty</SelectItem>
+                                    <SelectItem value="is_not_empty">Is not empty</SelectItem>
+                                  </>
+                                );
+                              } else {
+                                return (
+                                  <>
+                                    <SelectItem value="contains">Contains</SelectItem>
+                                    <SelectItem value="equals">Equals</SelectItem>
+                                    <SelectItem value="not_contains">Does not contain</SelectItem>
+                                    <SelectItem value="is_empty">Is empty</SelectItem>
+                                    <SelectItem value="is_not_empty">Is not empty</SelectItem>
+                                  </>
+                                );
+                              }
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Value Input */}
+                    {filterColumn && filterOperator && !["is_empty", "is_not_empty"].includes(filterOperator) && (
+                      <div>
+                        <label className="text-xs text-gray-600 mb-1 block">Value</label>
+                        <Input
+                          value={filterValue}
+                          onChange={(e) => setFilterValue(e.target.value)}
+                          placeholder="Enter value"
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (filterColumn && filterOperator) {
+                            handleAddFilter(filterColumn, filterOperator, filterValue);
+                            setFilterColumn("");
+                            setFilterOperator("");
+                            setFilterValue("");
+                          }
+                        }}
+                        disabled={!filterColumn || !filterOperator}
+                      >
+                        Add Filter
+                      </Button>
+                      
+                      {view?.filters && (view.filters as Filter[]).length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            handleRemoveFilter();
+                            setFilterColumn("");
+                            setFilterOperator("");
+                            setFilterValue("");
+                          }}
+                        >
+                          Clear Filter
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Group</Button>
 
               {/* Sort Dropdown - Airtable Style */}
@@ -528,152 +797,6 @@ export default function BaseTabsPage() {
                         </>
                       );
                     })()}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Filter Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
-                    Filter
-                    {view?.filters && (view.filters as Filter[]).length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">
-                        {(view.filters as Filter[]).length}
-                      </span>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80 p-4">
-                  <div className="space-y-3">
-                    {/* Show existing filters */}
-                    {view?.filters && (view.filters as Filter[]).length > 0 && (
-                      <div className="space-y-2 pb-3 border-b">
-                        <div className="text-sm font-medium">Active Filters</div>
-                        {(view.filters as Filter[]).map((filter, index) => {
-                          const column = columns.find(c => c.id === filter.columnId);
-                          return (
-                            <div key={index} className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded">
-                              <span>
-                                <strong>{column?.name}</strong> {filter.operator.replace(/_/g, ' ')} 
-                                {filter.value !== undefined && filter.value !== '' && ` "${filter.value}"`}
-                              </span>
-                              <button
-                                onClick={() => handleRemoveFilter()}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    <div className="text-sm font-medium">Add Filter</div>
-                    
-                    {/* Column Selection */}
-                    <div>
-                      <label className="text-xs text-gray-600 mb-1 block">Column</label>
-                      <Select value={filterColumn} onValueChange={setFilterColumn}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select column" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {columns.map((col) => (
-                            <SelectItem key={col.id} value={col.id}>
-                              {col.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Operator Selection */}
-                    {filterColumn && (
-                      <div>
-                        <label className="text-xs text-gray-600 mb-1 block">Condition</label>
-                        <Select value={filterOperator} onValueChange={setFilterOperator}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select condition" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(() => {
-                              const column = columns.find(c => c.id === filterColumn);
-                              if (column?.type === "number") {
-                                return (
-                                  <>
-                                    <SelectItem value="equals">Equals</SelectItem>
-                                    <SelectItem value="greater_than">Greater than</SelectItem>
-                                    <SelectItem value="less_than">Less than</SelectItem>
-                                    <SelectItem value="greater_equal">Greater than or equal</SelectItem>
-                                    <SelectItem value="less_equal">Less than or equal</SelectItem>
-                                    <SelectItem value="is_empty">Is empty</SelectItem>
-                                    <SelectItem value="is_not_empty">Is not empty</SelectItem>
-                                  </>
-                                );
-                              } else {
-                                return (
-                                  <>
-                                    <SelectItem value="contains">Contains</SelectItem>
-                                    <SelectItem value="equals">Equals</SelectItem>
-                                    <SelectItem value="not_contains">Does not contain</SelectItem>
-                                    <SelectItem value="is_empty">Is empty</SelectItem>
-                                    <SelectItem value="is_not_empty">Is not empty</SelectItem>
-                                  </>
-                                );
-                              }
-                            })()}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {/* Value Input */}
-                    {filterColumn && filterOperator && !["is_empty", "is_not_empty"].includes(filterOperator) && (
-                      <div>
-                        <label className="text-xs text-gray-600 mb-1 block">Value</label>
-                        <Input
-                          value={filterValue}
-                          onChange={(e) => setFilterValue(e.target.value)}
-                          placeholder="Enter value"
-                          className="w-full"
-                        />
-                      </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          if (filterColumn && filterOperator) {
-                            handleAddFilter(filterColumn, filterOperator, filterValue);
-                            setFilterColumn("");
-                            setFilterOperator("");
-                            setFilterValue("");
-                          }
-                        }}
-                        disabled={!filterColumn || !filterOperator}
-                      >
-                        Add Filter
-                      </Button>
-                      
-                      {view?.filters && (view.filters as Filter[]).length > 0 && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            handleRemoveFilter();
-                            setFilterColumn("");
-                            setFilterOperator("");
-                            setFilterValue("");
-                          }}
-                        >
-                          Clear Filter
-                        </Button>
-                      )}
-                    </div>
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
