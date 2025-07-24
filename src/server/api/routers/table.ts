@@ -24,11 +24,11 @@ export const tableRouter = createTRPCRouter({
           _count: {
             select: { columns: true, rows: true },
           },
-        },        
+        },
       });
     }),
 
-    create: protectedProcedure
+  create: protectedProcedure
     .input(z.object({ baseId: z.string(), name: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // 1. Create the table
@@ -38,7 +38,7 @@ export const tableRouter = createTRPCRouter({
           baseId: input.baseId,
         },
       });
-  
+
       // 2. Create 3 columns
       const [nameCol, ageCol, countryCol] = await ctx.prisma.$transaction([
         ctx.prisma.column.create({
@@ -51,44 +51,68 @@ export const tableRouter = createTRPCRouter({
           data: { tableId: table.id, name: "Country", type: "text", order: 2 },
         }),
       ]);
-  
+
       // 3. Bulk insert rows
       const rowData = Array.from({ length: 100 }).map(() => ({
         tableId: table.id,
       }));
       await ctx.prisma.row.createMany({ data: rowData });
-  
+
       const rows = await ctx.prisma.row.findMany({
         where: { tableId: table.id },
         select: { id: true },
       });
-  
+
       // 4. Bulk insert cells
-      const cellData = rows.flatMap((row) => [
-        {
-          rowId: row.id,
-          columnId: nameCol.id,
-          value: faker.person.fullName(),
-        },
-        {
-          rowId: row.id,
-          columnId: ageCol.id,
-          value: String(faker.number.int({ min: 18, max: 65 })),
-        },
-        {
-          rowId: row.id,
-          columnId: countryCol.id,
-          value: faker.location.country(),
-        },
-      ]);
-  
+      const cellData = rows.flatMap((row) => {
+        const nameValue = faker.person.fullName();
+        const ageValue = String(faker.number.int({ min: 18, max: 65 }));
+        const countryValue = faker.location.country();
+        
+        return [
+          {
+            rowId: row.id,
+            columnId: nameCol.id,
+            value: nameValue,
+            flattenedValueText: nameValue,
+            flattenedValueNumber: null,
+          },
+          {
+            rowId: row.id,
+            columnId: ageCol.id,
+            value: ageValue,
+            flattenedValueText: null,
+            flattenedValueNumber: parseFloat(ageValue),
+          },
+          {
+            rowId: row.id,
+            columnId: countryCol.id,
+            value: countryValue,
+            flattenedValueText: countryValue,
+            flattenedValueNumber: null,
+          },
+        ];
+      });
+
       await ctx.prisma.cell.createMany({ data: cellData });
-  
+
+      // ✅ 5. Create default view
+      await ctx.prisma.view.create({
+        data: {
+          tableId: table.id,
+          name: "Default View",
+          columnOrder: [nameCol.id, ageCol.id, countryCol.id],
+          filters: [],
+          sorts: [],
+          hiddenColumns: [],
+        },
+      });
+
       return table;
-    }),  
+    }),
 
   delete: protectedProcedure
-  .input(z.object({ tableId: z.string() }))
+    .input(z.object({ tableId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.table.update({
         where: {

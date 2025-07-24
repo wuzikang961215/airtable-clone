@@ -18,6 +18,7 @@ export const columnRouter = createTRPCRouter({
       });
     }),
 
+
   delete: protectedProcedure
     .input(z.object({ columnId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -27,7 +28,7 @@ export const columnRouter = createTRPCRouter({
       });
     }),
 
-    add: protectedProcedure
+  add: protectedProcedure
     .input(
       z.object({
         tableId: z.string(),
@@ -39,7 +40,7 @@ export const columnRouter = createTRPCRouter({
       const currentCount = await ctx.prisma.column.count({
         where: { tableId: input.tableId, isDeleted: false },
       });
-  
+
       const [newColumn, existingRows] = await Promise.all([
         ctx.prisma.column.create({
           data: {
@@ -54,18 +55,41 @@ export const columnRouter = createTRPCRouter({
           select: { id: true },
         }),
       ]);
-  
+
       if (existingRows.length > 0) {
+        const isNumber = newColumn.type === "number";
         await ctx.prisma.cell.createMany({
           data: existingRows.map((row) => ({
             rowId: row.id,
             columnId: newColumn.id,
             value: "",
+            flattenedValueText: !isNumber ? "" : null,
+            flattenedValueNumber: isNumber ? null : null,
           })),
           skipDuplicates: true,
         });
       }
-  
+
+      // ✅ 更新所有 views 的 columnOrder
+      const allViews = await ctx.prisma.view.findMany({
+        where: { tableId: input.tableId },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        allViews.map((view) =>
+          ctx.prisma.view.update({
+            where: { id: view.id },
+            data: {
+              columnOrder: {
+                push: newColumn.id,
+              },
+            },
+          })
+        )
+      );
+
       return newColumn;
-    }),  
+    }),
+
 });

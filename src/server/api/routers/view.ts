@@ -1,6 +1,32 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
+// Import the same filter and sort schemas from row router for consistency
+const textFilterSchema = z.object({
+  columnId: z.string(),
+  columnType: z.literal("text"),
+  operator: z.enum(["contains", "equals", "not_contains", "is_empty", "is_not_empty"]),
+  value: z.string().optional(),
+});
+
+const numberFilterSchema = z.object({
+  columnId: z.string(),
+  columnType: z.literal("number"),
+  operator: z.enum(["equals", "greater_than", "less_than", "greater_equal", "less_equal", "is_empty", "is_not_empty"]),
+  value: z.number().optional(),
+});
+
+const filterSchema = z.discriminatedUnion("columnType", [
+  textFilterSchema,
+  numberFilterSchema,
+]);
+
+const sortSchema = z.object({
+  columnId: z.string(),
+  columnType: z.enum(["text", "number"]),
+  direction: z.enum(["asc", "desc"]),
+});
+
 export const viewRouter = createTRPCRouter({
   getById: protectedProcedure
     .input(z.object({ viewId: z.string() }))
@@ -49,14 +75,9 @@ export const viewRouter = createTRPCRouter({
         viewId: z.string(),
         columnOrder: z.array(z.string()).optional(),
         hiddenColumnIds: z.array(z.string()).optional(),
-        sorts: z
-          .array(
-            z.object({
-              columnId: z.string(),
-              direction: z.enum(["asc", "desc"]),
-            })
-          )
-          .optional(),
+        filters: z.array(filterSchema).optional(),
+        sorts: z.array(sortSchema).optional(),
+        searchTerm: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -65,7 +86,9 @@ export const viewRouter = createTRPCRouter({
         data: {
           columnOrder: input.columnOrder,
           hiddenColumns: input.hiddenColumnIds,
+          filters: input.filters,
           sorts: input.sorts,
+          searchTerm: input.searchTerm,
         },
       });
     }),  

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { api } from "~/trpc/react";
 import { EditableTable } from "./EditableTable";
 import { useTableData } from "~/hooks/useTableData";
@@ -8,12 +8,13 @@ import { ViewSelector } from "./ViewSelector";
 
 type TableViewProps = {
   tableId: string;
-  searchTerm?: string; // ✅ 改为可选
-  onActiveViewChange?: (view: { id: string; name: string }) => void;
+  activeViewId: string | null;
+  onViewChange: (viewId: string, viewName: string) => void;
+  searchTerm?: string;
+  sorts?: { columnId: string; direction: string }[]; // Pass sorts from parent
 };
 
-export const TableView = ({ tableId, searchTerm = "", onActiveViewChange }: TableViewProps) => {
-  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = "" }: TableViewProps) => {
 
   const { data: views = [], isLoading: loadingViews } = api.view.getByTable.useQuery(
     { tableId },
@@ -22,22 +23,17 @@ export const TableView = ({ tableId, searchTerm = "", onActiveViewChange }: Tabl
 
   const utils = api.useUtils();
 
+  // Initialize activeViewId with first view if none is selected
   useEffect(() => {
-    if (views.length > 0 && views[0]?.id) {
-      setActiveViewId(views[0].id);
+    if (!activeViewId && views.length > 0 && views[0]) {
+      onViewChange(views[0].id, views[0].name);
     }
-  }, [tableId, views]);
+  }, [tableId, views, activeViewId, onViewChange]);
 
-  const activeView = useMemo(
-    () => views.find((v) => v.id === activeViewId),
-    [views, activeViewId]
-  );
-
-  useEffect(() => {
-    if (activeView && onActiveViewChange) {
-      onActiveViewChange(activeView);
-    }
-  }, [activeView, onActiveViewChange]);
+  // const _activeView = useMemo(
+  //   () => views.find((v) => v.id === activeViewId),
+  //   [views, activeViewId]
+  // );
 
   const {
     rowsById,
@@ -50,7 +46,7 @@ export const TableView = ({ tableId, searchTerm = "", onActiveViewChange }: Tabl
     updateCell,
     addRow,
     addColumn,
-  } = useTableData(tableId, activeViewId ?? "");
+  } = useTableData(tableId, activeViewId);
 
   const isReady =
     !loading &&
@@ -78,10 +74,15 @@ export const TableView = ({ tableId, searchTerm = "", onActiveViewChange }: Tabl
         tableId={tableId}
         views={views}
         currentViewId={activeViewId}
-        onViewChange={(id) => setActiveViewId(id)}
-        onCreateView={(newView: { id: string }) => {
+        onViewChange={(viewId) => {
+          const selectedView = views.find(v => v.id === viewId);
+          if (selectedView) {
+            onViewChange(viewId, selectedView.name);
+          }
+        }}
+        onCreateView={(newView: { id: string; name: string }) => {
           void utils.view.getByTable.invalidate({ tableId });
-          setActiveViewId(newView.id);
+          onViewChange(newView.id, newView.name);
         }}
       />
 
@@ -98,6 +99,7 @@ export const TableView = ({ tableId, searchTerm = "", onActiveViewChange }: Tabl
             addRow={addRow}
             addColumn={addColumn}
             searchTerm={searchTerm} // ✅ passed directly from props
+            sorts={viewConfig?.sorts || []} // Pass sorts for highlighting
           />
         ) : (
           <div className="p-4 text-gray-500">

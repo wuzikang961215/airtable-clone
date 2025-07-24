@@ -23,7 +23,13 @@ export default async function Page({
     <HydrateClient>
       <main className="min-h-screen p-6 bg-white text-gray-900">
         <h1 className="text-2xl font-semibold mb-4">{table.name}</h1>
-        <TableView tableId={tableId} />
+        <TableView 
+          tableId={tableId} 
+          activeViewId={null}
+          onViewChange={() => {
+            // No-op for this simple view
+          }}
+        />
       </main>
     </HydrateClient>
   );

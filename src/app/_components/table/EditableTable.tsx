@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
-  flexRender,
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -31,6 +30,7 @@ type Props = {
   addRow: () => void;
   addColumn: (name: string, type: "text" | "number") => void;
   searchTerm: string;
+  sorts?: { columnId: string; direction: string }[];
 };
 
 export const EditableTable = ({
@@ -44,6 +44,7 @@ export const EditableTable = ({
   addRow,
   addColumn,
   searchTerm,
+  sorts = [],
 }: Props) => {
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -128,9 +129,39 @@ export const EditableTable = ({
     rowIdList,
   });
 
+  // Trigger pagination when scrolling near the bottom
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !hasNextPage || isFetchingNextPage) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Trigger when scrolled to within 200px of the bottom
+      const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 200;
+      
+      if (scrolledToBottom) {
+        console.log('Scroll-based pagination trigger');
+        void fetchNextPage();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Also trigger based on virtual items (as backup)
   useEffect(() => {
     const lastItem = vRows[vRows.length - 1];
-    if (lastItem && lastItem.index >= tableRows.length - 1 && hasNextPage && !isFetchingNextPage) {
+    if (!lastItem || !hasNextPage || isFetchingNextPage) return;
+    
+    // Check if we're rendering close to the end of the data
+    const isNearEnd = lastItem.index >= tableRows.length - 5;
+    
+    // Also check if the last virtual item is one of the last few rows
+    const isLastItemNearEnd = vRows.some(item => item.index >= tableRows.length - 3);
+    
+    if (isNearEnd || isLastItemNearEnd) {
+      console.log('Virtual item pagination trigger - lastItem.index:', lastItem.index, 'tableRows.length:', tableRows.length);
       void fetchNextPage();
     }
   }, [vRows, tableRows.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -146,11 +177,13 @@ export const EditableTable = ({
     >
       <VirtualizedTableBody
         table={table} // ✅ REQUIRED
-        containerRef={containerRef}
+        _containerRef={containerRef}
         tableRows={tableRows}
         visibleColumns={visibleColumns}
         vRows={vRows}
         vCols={vCols}
+        rowVirtualizer={rowVirtualizer}
+        columnVirtualizer={columnVirtualizer}
         updateCell={updateCell}
         editingCell={editingCell}
         selectedCell={selectedCell}
@@ -159,6 +192,8 @@ export const EditableTable = ({
         addRow={addRow}
         addColumn={addColumn}
         searchTerm={searchTerm}
+        _view={null}
+        sorts={sorts}
       />
       {isFetchingNextPage && (
         <div className="text-center p-2 text-gray-500">Loading more…</div>

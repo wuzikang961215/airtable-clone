@@ -10,11 +10,17 @@ type CellKey = { rowId: string; columnId: string };
 
 type Props = {
   table: Table<{ id: string;[key: string]: string }>;
-  containerRef: React.RefObject<HTMLDivElement | null>; // ✅ 添加这一行
+  _containerRef: React.RefObject<HTMLDivElement | null>;
   tableRows: Row<{ id: string;[key: string]: string }>[];
   visibleColumns: Column<{ id: string;[key: string]: string }, unknown>[];
   vRows: VirtualItem[];
   vCols: VirtualItem[];
+  rowVirtualizer: {
+    getTotalSize: () => number;
+  };
+  columnVirtualizer: {
+    getTotalSize: () => number;
+  };
   updateCell: (rowId: string, columnId: string, value: string) => void;
   editingCell: CellKey | null;
   selectedCell: CellKey | null;
@@ -23,14 +29,21 @@ type Props = {
   addRow: () => void;
   addColumn: (name: string, type: "text" | "number") => void;
   searchTerm: string;
+  _view?: {
+    sorts?: { columnId: string; direction: "asc" | "desc" }[];
+  } | null;
+  sorts?: { columnId: string; direction: string }[];
 };
 
 export const VirtualizedTableBody = ({
   table,
+  _containerRef,
   tableRows,
   visibleColumns,
   vRows,
   vCols,
+  rowVirtualizer,
+  columnVirtualizer,
   updateCell,
   editingCell,
   selectedCell,
@@ -39,6 +52,8 @@ export const VirtualizedTableBody = ({
   addRow,
   addColumn,
   searchTerm,
+  _view,
+  sorts = [],
 }: Props) => {
   const getNextCellKey = (
     current: CellKey,
@@ -93,11 +108,13 @@ export const VirtualizedTableBody = ({
     return null;
   };
 
+  const sortedColumnIds = sorts.map((s) => s.columnId);
+
   return (
     <div
       style={{
-        width: (vCols[vCols.length - 1]?.end ?? 0) + 40,
-        height: (vRows[vRows.length - 1]?.end ?? 0) + 40,
+        width: columnVirtualizer.getTotalSize() + 40,
+        height: rowVirtualizer.getTotalSize() + 40,
         position: "relative",
       }}
     >
@@ -110,6 +127,8 @@ export const VirtualizedTableBody = ({
           const isRightmost = vc.index === visibleColumns.length;
           const header = group.headers[vc.index];
 
+          const isSortedColumn = header && sorts.some(s => s.columnId === header.column.id);
+          
           return (
             <div
               key={vc.key}
@@ -120,11 +139,11 @@ export const VirtualizedTableBody = ({
                 width: vc.size,
                 height: 40,
                 padding: "0 8px",
-                background: "white",
                 fontWeight: 500,
                 zIndex: 1,
                 display: "flex",
                 alignItems: "center",
+                backgroundColor: isSortedColumn ? "#FFEFE6" : "white",
               }}
             >
               {isRightmost ? (
@@ -173,8 +192,6 @@ export const VirtualizedTableBody = ({
                 editingCell?.rowId === cellKey.rowId &&
                 editingCell?.columnId === cellKey.columnId;
 
-              const cellValue = cell.getValue();
-
               return (
                 <CellRenderer
                   key={cell.id}
@@ -192,6 +209,9 @@ export const VirtualizedTableBody = ({
                     left: vc.start + 40,
                     width: vc.size,
                     height: vr.size,
+                    backgroundColor: sortedColumnIds.includes(col.id)
+                      ? "#FFEFE6" // Light peach color for sorted columns
+                      : undefined,
                   }}
                 />
               );

@@ -88,7 +88,7 @@ export const CellRenderer = ({
         textOverflow: "ellipsis",
         border: isSelected ? "2px solid #3b82f6" : "1px solid #eee",
         outline: "none",
-        background: matchesSearch ? "#FEF3C7" : "white", // yellow-100 if matched
+        background: matchesSearch ? "#FEF3C7" : (style.backgroundColor ?? "white"), // yellow-100 if matched, otherwise use passed background or white
       }}
       title={
         typeof cellValue === "string" || typeof cellValue === "number"

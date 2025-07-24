@@ -59,9 +59,9 @@ type View = {
 type Props = {
   tableId: string;
   views: View[];
-  currentViewId?: string;
+  currentViewId?: string | null;
   onViewChange: (viewId: string) => void;
-  onCreateView: (view: View) => void;
+  onCreateView: (view: { id: string; name: string }) => void;
 };
 
 export function ViewSelector({

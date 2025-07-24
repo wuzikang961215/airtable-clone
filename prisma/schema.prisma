@@ -100,9 +100,18 @@ model Cell {
   rowId    String
   columnId String
   value    String
+
+  // 🆕 Add flattened fields:
+  flattenedValueText   String?  @db.Text
+  flattenedValueNumber Float?
+
   column   Column @relation(fields: [columnId], references: [id])
   row      Row    @relation(fields: [rowId], references: [id])
+
+  @@index([flattenedValueText])
+  @@index([flattenedValueNumber])
 }
+
 
 model View {
   id            String   @id @default(cuid())
