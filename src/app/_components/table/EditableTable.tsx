@@ -31,6 +31,7 @@ type Props = {
   addColumn: (name: string, type: "text" | "number") => void;
   searchTerm: string;
   sorts?: { columnId: string; direction: string }[];
+  filters?: { columnId: string; operator: string; value?: string | number }[];
 };
 
 export const EditableTable = ({
@@ -45,6 +46,7 @@ export const EditableTable = ({
   addColumn,
   searchTerm,
   sorts = [],
+  filters = [],
 }: Props) => {
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; columnId: string } | null>(null);
@@ -194,6 +196,7 @@ export const EditableTable = ({
         searchTerm={searchTerm}
         _view={null}
         sorts={sorts}
+        filters={filters}
       />
       {isFetchingNextPage && (
         <div className="text-center p-2 text-gray-500">Loading more…</div>

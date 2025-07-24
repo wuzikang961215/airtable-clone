@@ -100,6 +100,7 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
             addColumn={addColumn}
             searchTerm={searchTerm} // ✅ passed directly from props
             sorts={viewConfig?.sorts || []} // Pass sorts for highlighting
+            filters={viewConfig?.filters || []} // Pass filters for highlighting
           />
         ) : (
           <div className="p-4 text-gray-500">

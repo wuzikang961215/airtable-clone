@@ -33,6 +33,7 @@ type Props = {
     sorts?: { columnId: string; direction: "asc" | "desc" }[];
   } | null;
   sorts?: { columnId: string; direction: string }[];
+  filters?: { columnId: string; operator: string; value?: string | number }[];
 };
 
 export const VirtualizedTableBody = ({
@@ -54,6 +55,7 @@ export const VirtualizedTableBody = ({
   searchTerm,
   _view,
   sorts = [],
+  filters = [],
 }: Props) => {
   const getNextCellKey = (
     current: CellKey,
@@ -109,6 +111,7 @@ export const VirtualizedTableBody = ({
   };
 
   const sortedColumnIds = sorts.map((s) => s.columnId);
+  const filteredColumnIds = filters.map((f) => f.columnId);
 
   return (
     <div
@@ -128,6 +131,7 @@ export const VirtualizedTableBody = ({
           const header = group.headers[vc.index];
 
           const isSortedColumn = header && sorts.some(s => s.columnId === header.column.id);
+          const isFilteredColumn = header && filters.some(f => f.columnId === header.column.id);
           
           return (
             <div
@@ -143,7 +147,7 @@ export const VirtualizedTableBody = ({
                 zIndex: 1,
                 display: "flex",
                 alignItems: "center",
-                backgroundColor: isSortedColumn ? "#FFEFE6" : "white",
+                backgroundColor: isFilteredColumn ? "#d1fae5" : isSortedColumn ? "#FFEFE6" : "white", // green-100 for filtered, peach for sorted
               }}
             >
               {isRightmost ? (
@@ -209,7 +213,9 @@ export const VirtualizedTableBody = ({
                     left: vc.start + 40,
                     width: vc.size,
                     height: vr.size,
-                    backgroundColor: sortedColumnIds.includes(col.id)
+                    backgroundColor: filteredColumnIds.includes(col.id)
+                      ? "#d1fae5" // green-100 for filtered columns
+                      : sortedColumnIds.includes(col.id)
                       ? "#FFEFE6" // Light peach color for sorted columns
                       : undefined,
                   }}
