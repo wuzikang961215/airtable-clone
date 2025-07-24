@@ -22,6 +22,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "../../components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../../components/ui/dialog";
 
 export default function BaseList() {
   const utils = api.useUtils();
@@ -49,6 +56,12 @@ export default function BaseList() {
     }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isCreating) {
+      void handleCreate();
+    }
+  };
+
   const deleteBase = api.base.delete.useMutation({
     onMutate: ({ baseId }) => {
       setDeletingBaseId(baseId);
@@ -60,52 +73,119 @@ export default function BaseList() {
   });
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-16 bg-white border-r flex flex-col items-center py-4 space-y-6">
-        <Home className="text-gray-600 hover:text-blue-600" />
-        <Star className="text-gray-400 hover:text-blue-600" />
-        <Users className="text-gray-400 hover:text-blue-600" />
+      <aside className="w-60 bg-white border-r flex flex-col shadow-sm">
+        {/* Logo */}
+        <div className="px-6 py-4 border-b">
+          <h1 className="text-xl font-bold text-gray-900">Airtable</h1>
+        </div>
+        
+        {/* Navigation */}
+        <nav className="flex-1 p-2">
+          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md bg-gray-100 text-gray-900 font-medium">
+            <Home className="w-4 h-4" />
+            <span>Home</span>
+          </button>
+          
+          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-600 mt-1">
+            <Star className="w-4 h-4" />
+            <span>Starred</span>
+          </button>
+          
+          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-600 mt-1">
+            <Users className="w-4 h-4" />
+            <span>Shared</span>
+          </button>
+          
+          <div className="mt-6">
+            <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Workspaces</h3>
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-600 mt-2">
+              <div className="w-6 h-6 bg-purple-600 rounded-md flex items-center justify-center text-white text-xs font-bold">
+                M
+              </div>
+              <span className="text-sm">My workspace</span>
+            </button>
+          </div>
+        </nav>
+        
+        {/* Create button at bottom */}
+        <div className="p-4 border-t">
+          <button
+            onClick={() => setShowInput(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-6">
-        {/* Invite bar */}
-        <div className="bg-green-100 border border-green-200 text-green-800 px-4 py-2 rounded flex items-center justify-between text-sm mb-4">
-          <span>
-            ✅ Welcome to the improved Home. Find, navigate to, and manage your
-            apps more easily.
-          </span>
-          <Button
-            variant="ghost"
-            className="text-sm text-green-700 hover:underline"
-          >
-            See what&apos;s new
-          </Button>
-        </div>
-
+      <main className="flex-1 flex flex-col">
         {/* Top bar */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-xl font-semibold text-gray-800">Home</h1>
-          <div className="flex items-center gap-4">
-            <div className="relative w-80">
+        <div className="flex items-center justify-between px-6 py-3 bg-white border-b">
+          <div className="w-32"></div> {/* Spacer for alignment */}
+          
+          {/* Centered search bar */}
+          <div className="flex-1 max-w-xl mx-auto px-8">
+            <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search..."
-                className="pl-10 text-sm"
+                placeholder="Search for a base..."
+                className="pl-10 w-full text-sm"
               />
             </div>
-            <HelpCircle className="text-gray-400 hover:text-blue-600" />
-            <Bell className="text-gray-400 hover:text-blue-600" />
-            <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center font-bold text-white">
-              T
-            </div>
+          </div>
+          
+          {/* Right side icons */}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <HelpCircle className="h-4 w-4 text-gray-500" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Bell className="h-4 w-4 text-gray-500" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center font-bold text-white text-sm hover:ring-2 hover:ring-yellow-300">
+                  T
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem>Profile</DropdownMenuItem>
+                <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuItem className="text-red-600">
+                  <Link href="/api/auth/signout" className="w-full">
+                    Sign out
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Top cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {/* Content area */}
+        <div className="flex-1 p-6 overflow-auto">
+          {/* Welcome banner */}
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-center justify-between text-sm mb-6">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">👋</span>
+              <span>
+                Welcome to Airtable! Start building your perfect workflow.
+              </span>
+            </div>
+            <button className="text-blue-600 hover:text-blue-700 font-medium text-sm">
+              Dismiss
+            </button>
+          </div>
+
+          {/* Page title */}
+          <h1 className="text-2xl font-semibold text-gray-900 mb-6">Home</h1>
+
+          {/* Top cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className="p-4 shadow-sm hover:shadow-md cursor-pointer">
             <p className="font-semibold mb-1 text-fuchsia-700">Start with Omni</p>
             <p className="text-sm text-gray-500">
@@ -132,9 +212,11 @@ export default function BaseList() {
           </Card>
         </div>
 
-        {/* Bases */}
-        <h2 className="text-sm text-gray-600 mb-2">Opened anytime</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {/* Bases section */}
+          <div className="mb-4">
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Recently opened</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {isLoading ? (
             <Card className="p-4 text-sm text-gray-500">Loading...</Card>
           ) : (
@@ -196,42 +278,43 @@ export default function BaseList() {
                 );
               })}
 
-              <Card
-                className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 cursor-pointer hover:border-blue-400 hover:text-blue-600 flex flex-col items-center justify-center"
-                onClick={() => setShowInput(true)}
-              >
-                {showInput ? (
-                  <div className="w-full">
-                    <Input
-                      placeholder="New base name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="text-sm mb-2"
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleCreate} disabled={isCreating}>
-                        {isCreating ? "Creating..." : "Create"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowInput(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <Plus className="w-6 h-6 mb-1" />
-                    <span className="text-sm">New Base</span>
-                  </>
-                )}
-              </Card>
             </>
           )}
         </div>
+        </div>
       </main>
+
+      {/* Create Base Modal */}
+      <Dialog open={showInput} onOpenChange={setShowInput}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create new base</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Base name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyPress={handleKeyPress}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowInput(false);
+                setName("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={isCreating}>
+              {isCreating ? "Creating..." : "Create base"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

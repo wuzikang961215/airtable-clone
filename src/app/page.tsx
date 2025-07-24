@@ -6,38 +6,28 @@ import BaseList from "~/app/_components/BaseList";
 export default async function Home() {
   const session = await auth();
 
-  return (
-    <HydrateClient>
-      <main className="min-h-screen bg-gray-100 text-gray-900 px-8 py-6">
-        <header className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Airtable</h1>
-
-          {session ? (
-            <div className="flex items-center gap-4">
-              <span className="text-sm">Hi, {session.user?.name}</span>
-              <Link
-                href="/api/auth/signout"
-                className="text-sm text-blue-600 hover:underline"
-              >
-                Sign out
-              </Link>
-            </div>
-          ) : (
+  if (!session?.user) {
+    return (
+      <HydrateClient>
+        <main className="min-h-screen bg-gray-100 text-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold mb-4">Welcome to Airtable</h1>
+            <p className="text-gray-600 mb-6">Please sign in to access your workspace.</p>
             <Link
               href="/api/auth/signin"
-              className="text-sm text-blue-600 hover:underline"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Sign in
             </Link>
-          )}
-        </header>
+          </div>
+        </main>
+      </HydrateClient>
+    );
+  }
 
-        {session?.user ? (
-          <BaseList />
-        ) : (
-          <p className="text-gray-600">Please sign in to access your workspace.</p>
-        )}
-      </main>
+  return (
+    <HydrateClient>
+      <BaseList />
     </HydrateClient>
   );
 }
