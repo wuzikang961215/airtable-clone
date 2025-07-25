@@ -257,6 +257,7 @@ export function useTableData(tableId: string, viewId?: string | null) {
   });
 
   const addRowMutation = api.row.add.useMutation();
+  const bulkCreateRowsMutation = api.row.bulkCreateRows.useMutation();
 
   // ─── Actions ───────────────────────────────────────────────────────────
   const updateCell = (rowId: string, columnId: string, value: string) => {
@@ -265,6 +266,14 @@ export function useTableData(tableId: string, viewId?: string | null) {
 
   const addRow = () => {
     void addRowMutation.mutate({ tableId }, {
+      onSuccess: () => {
+        void utils.row.getByTable.invalidate(rowQueryInput);
+      },
+    });
+  };
+
+  const bulkAddRows = (count: number) => {
+    return bulkCreateRowsMutation.mutateAsync({ tableId, count }, {
       onSuccess: () => {
         void utils.row.getByTable.invalidate(rowQueryInput);
       },
@@ -311,6 +320,8 @@ export function useTableData(tableId: string, viewId?: string | null) {
     fetchNextPage,
     updateCell,
     addRow,
+    bulkAddRows,
+    isBulkInserting: bulkCreateRowsMutation.isPending,
     addColumn,
     // Helper functions for creating filters and sorts
     createTextFilter,

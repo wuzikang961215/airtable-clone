@@ -396,4 +396,61 @@ export const rowRouter = createTRPCRouter({
 
       return { ...row, cells };
     }),
+
+  bulkCreateRows: protectedProcedure
+    .input(z.object({ 
+      tableId: z.string(), 
+      count: z.number().min(1).max(100000)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log(`Starting bulk insert of ${input.count} rows for table ${input.tableId}`);
+      
+      // Get columns for cell creation
+      const columns = await ctx.prisma.column.findMany({
+        where: { tableId: input.tableId, isDeleted: false },
+        select: { id: true, type: true }
+      });
+      
+      if (columns.length === 0) {
+        throw new Error("Table has no columns");
+      }
+      
+      // No order field in Row model, so we'll just create rows without ordering
+      
+      // Batch insert for performance
+      const batchSize = 1000;
+      const totalBatches = Math.ceil(input.count / batchSize);
+      
+      for (let batch = 0; batch < totalBatches; batch++) {
+        const currentBatchSize = Math.min(batchSize, input.count - (batch * batchSize));
+        
+        // Create rows - let database generate IDs
+        const rows = Array.from({ length: currentBatchSize }, () => ({
+          tableId: input.tableId
+        }));
+        
+        // Create rows and get their IDs
+        const createdRows = await ctx.prisma.$transaction(
+          rows.map(rowData => ctx.prisma.row.create({ data: rowData }))
+        );
+        
+        // Create empty cells for each row/column combination
+        const cells = createdRows.flatMap(row => 
+          columns.map(col => ({
+            rowId: row.id,
+            columnId: col.id,
+            value: "",
+            flattenedValueText: col.type === "text" ? "" : null,
+            flattenedValueNumber: col.type === "number" ? null : null
+          }))
+        );
+        
+        await ctx.prisma.cell.createMany({ data: cells });
+        
+        console.log(`Completed batch ${batch + 1}/${totalBatches}`);
+      }
+      
+      console.log(`Bulk insert completed: ${input.count} rows created`);
+      return { success: true, count: input.count };
+    }),
 });

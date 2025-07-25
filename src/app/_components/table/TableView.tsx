@@ -45,6 +45,8 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
     isFetchingNextPage,
     updateCell,
     addRow,
+    bulkAddRows,
+    isBulkInserting,
     addColumn,
   } = useTableData(tableId, activeViewId);
 
@@ -97,6 +99,8 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
             isFetchingNextPage={isFetchingNextPage}
             updateCell={updateCell}
             addRow={addRow}
+            bulkAddRows={bulkAddRows}
+            isBulkInserting={isBulkInserting}
             addColumn={addColumn}
             searchTerm={searchTerm} // ✅ passed directly from props
             sorts={viewConfig?.sorts || []} // Pass sorts for highlighting

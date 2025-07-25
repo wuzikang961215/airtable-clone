@@ -7,6 +7,8 @@ type Props = {
   rowIndex: number;
   isBottomRow: boolean;
   addRow: () => void;
+  bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
+  isBulkInserting: boolean;
 };
 
 export const RowHeader = ({
@@ -15,6 +17,8 @@ export const RowHeader = ({
   rowIndex,
   isBottomRow,
   addRow,
+  bulkAddRows,
+  isBulkInserting,
 }: Props) => {
   return (
     <div
@@ -35,9 +39,14 @@ export const RowHeader = ({
     >
       {isBottomRow ? (
         <AddRowDropdown
-          onAddRows={(count) => {
-            for (let i = 0; i < count; i++) addRow();
+          onAddRows={async (count) => {
+            if (count === 1) {
+              addRow();
+            } else {
+              await bulkAddRows(count);
+            }
           }}
+          isLoading={isBulkInserting}
         />
       ) : (
         rowIndex + 1

@@ -27,6 +27,8 @@ type Props = {
   setSelectedCell: (cell: CellKey) => void;
   setEditingCell: (cell: CellKey | null) => void;
   addRow: () => void;
+  bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
+  isBulkInserting: boolean;
   addColumn: (name: string, type: "text" | "number") => void;
   searchTerm: string;
   _view?: {
@@ -51,6 +53,8 @@ export const VirtualizedTableBody = ({
   setSelectedCell,
   setEditingCell,
   addRow,
+  bulkAddRows,
+  isBulkInserting,
   addColumn,
   searchTerm,
   _view,
@@ -173,6 +177,8 @@ export const VirtualizedTableBody = ({
               rowIndex={vr.index}
               isBottomRow={isBottomRow}
               addRow={addRow}
+              bulkAddRows={bulkAddRows}
+              isBulkInserting={isBulkInserting}
             />
 
             {vCols.map((vc) => {

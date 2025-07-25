@@ -7,6 +7,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Loader2 } from "lucide-react";
 import { useCellNavigation } from "./EditableTable/useCellNavigation";
 import { useColumnAndRowMaps } from "./EditableTable/useColumnAndRowMaps";
 import { VirtualizedTableBody } from "./EditableTable/VirtualizedTableBody";
@@ -28,6 +29,8 @@ type Props = {
   isFetchingNextPage: boolean;
   updateCell: (rowId: string, columnId: string, value: string) => void;
   addRow: () => void;
+  bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
+  isBulkInserting: boolean;
   addColumn: (name: string, type: "text" | "number") => void;
   searchTerm: string;
   sorts?: { columnId: string; direction: string }[];
@@ -43,6 +46,8 @@ export const EditableTable = ({
   isFetchingNextPage,
   updateCell,
   addRow,
+  bulkAddRows,
+  isBulkInserting,
   addColumn,
   searchTerm,
   sorts = [],
@@ -192,6 +197,8 @@ export const EditableTable = ({
         setSelectedCell={setSelectedCell}
         setEditingCell={setEditingCell}
         addRow={addRow}
+        bulkAddRows={bulkAddRows}
+        isBulkInserting={isBulkInserting}
         addColumn={addColumn}
         searchTerm={searchTerm}
         _view={null}
@@ -200,6 +207,19 @@ export const EditableTable = ({
       />
       {isFetchingNextPage && (
         <div className="text-center p-2 text-gray-500">Loading more…</div>
+      )}
+      {isBulkInserting && (
+        <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              <div>
+                <p className="font-semibold">Adding 100,000 rows...</p>
+                <p className="text-sm text-gray-500">This may take a minute</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
