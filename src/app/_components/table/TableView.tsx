@@ -52,6 +52,8 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
     bulkInsertProgress,
     otherTableBulkInsert,
     addColumn,
+    isAddingColumn,
+    columnAddProgress,
   } = useTableData(tableId, activeViewId);
   
   // Wrap bulkAddRows to show completion toast
@@ -122,6 +124,8 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
             bulkInsertProgress={bulkInsertProgress}
             otherTableBulkInsert={otherTableBulkInsert}
             addColumn={addColumn}
+            isAddingColumn={isAddingColumn}
+            columnAddProgress={columnAddProgress}
             searchTerm={searchTerm} // ✅ passed directly from props
             sorts={viewConfig?.sorts || []} // Pass sorts for highlighting
             filters={viewConfig?.filters || []} // Pass filters for highlighting

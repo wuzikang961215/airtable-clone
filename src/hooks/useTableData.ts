@@ -276,6 +276,15 @@ export function useTableData(tableId: string, viewId?: string | null) {
     },
   });
 
+  // Poll for column addition progress
+  const { data: columnAddProgress } = api.column.getColumnAddProgress.useQuery(
+    { tableId },
+    { 
+      refetchInterval: addColumnMutation.isPending ? 500 : false,
+      enabled: addColumnMutation.isPending
+    }
+  );
+
   const addRowMutation = api.row.add.useMutation();
   const bulkCreateRowsMutation = api.row.bulkCreateRows.useMutation();
   
@@ -363,6 +372,8 @@ export function useTableData(tableId: string, viewId?: string | null) {
     bulkInsertProgress,
     otherTableBulkInsert,
     addColumn,
+    isAddingColumn: addColumnMutation.isPending,
+    columnAddProgress,
     // Helper functions for creating filters and sorts
     createTextFilter,
     createNumberFilter,

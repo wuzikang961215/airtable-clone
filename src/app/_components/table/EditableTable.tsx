@@ -35,6 +35,8 @@ type Props = {
   bulkInsertProgress?: { current: number; total: number; tableId: string } | null;
   otherTableBulkInsert?: { total: number; tableId: string } | null;
   addColumn: (name: string, type: "text" | "number") => void;
+  isAddingColumn?: boolean;
+  columnAddProgress?: { current: number; total: number; columnName: string } | null;
   searchTerm: string;
   sorts?: { columnId: string; direction: string }[];
   filters?: { columnId: string; operator: string; value?: string | number }[];
@@ -54,6 +56,8 @@ export const EditableTable = ({
   bulkInsertProgress,
   otherTableBulkInsert,
   addColumn,
+  isAddingColumn = false,
+  columnAddProgress,
   searchTerm,
   sorts = [],
   filters = [],
@@ -204,7 +208,7 @@ export const EditableTable = ({
           );
         })}
         <div className="w-10 h-10 border-r border-b flex items-center justify-center">
-          <AddColumnForm onAddColumn={addColumn} />
+          <AddColumnForm onAddColumn={addColumn} isLoading={isAddingColumn} />
         </div>
       </div>
       
@@ -258,7 +262,7 @@ export const EditableTable = ({
           />
         </div>
         {/* Fill the rest to match table width */}
-        <div className={`flex-1 h-10 transition-colors ${isBulkInserting ? 'bg-blue-50' : 'bg-gray-50'}`}>
+        <div className={`flex-1 h-10 transition-colors ${isBulkInserting ? 'bg-blue-50' : isAddingColumn ? 'bg-green-50' : 'bg-gray-50'}`}>
           {isBulkInserting && bulkInsertProgress ? (
             <div className="px-4 py-2 text-sm text-blue-700 flex items-center gap-4">
               <span className="font-medium">
@@ -281,6 +285,26 @@ export const EditableTable = ({
               <span className="text-xs text-blue-500">
                 You can navigate to other tables
               </span>
+            </div>
+          ) : isAddingColumn && columnAddProgress ? (
+            <div className="px-4 py-2 text-sm text-green-700 flex items-center gap-4">
+              <span className="font-medium">
+                Adding column "{columnAddProgress.columnName}":
+              </span>
+              <span className="text-green-600">
+                {columnAddProgress.current.toLocaleString()} / {columnAddProgress.total.toLocaleString()} cells
+              </span>
+              <span className="text-green-500">
+                ({Math.round((columnAddProgress.current / columnAddProgress.total) * 100)}%)
+              </span>
+              <div className="flex-1 max-w-xs">
+                <div className="w-full bg-green-200 rounded-full h-1.5">
+                  <div 
+                    className="bg-green-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(columnAddProgress.current / columnAddProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
             </div>
           ) : otherTableBulkInsert ? (
             // Show hint if there's a bulk insert happening in another table
