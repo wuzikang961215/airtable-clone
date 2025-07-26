@@ -1,7 +1,5 @@
 import React from "react";
-import type { Row, Column, Table } from "@tanstack/react-table";
-import { flexRender } from "@tanstack/react-table";
-import { AddColumnForm } from "../AddColumnForm";
+import type { Row, Column } from "@tanstack/react-table";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { RowHeader } from "./RowHeader";
 import { CellRenderer } from "./CellRenderer";
@@ -9,7 +7,6 @@ import { CellRenderer } from "./CellRenderer";
 type CellKey = { rowId: string; columnId: string };
 
 type Props = {
-  table: Table<{ id: string;[key: string]: string }>;
   _containerRef: React.RefObject<HTMLDivElement | null>;
   tableRows: Row<{ id: string;[key: string]: string }>[];
   visibleColumns: Column<{ id: string;[key: string]: string }, unknown>[];
@@ -26,10 +23,10 @@ type Props = {
   selectedCell: CellKey | null;
   setSelectedCell: (cell: CellKey) => void;
   setEditingCell: (cell: CellKey | null) => void;
-  addRow: () => void;
-  bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
-  isBulkInserting: boolean;
-  addColumn: (name: string, type: "text" | "number") => void;
+  _addRow: () => void;
+  _bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
+  _isBulkInserting: boolean;
+  _bulkInsertProgress?: { current: number; total: number; tableId: string } | null;
   searchTerm: string;
   _view?: {
     sorts?: { columnId: string; direction: "asc" | "desc" }[];
@@ -39,7 +36,6 @@ type Props = {
 };
 
 export const VirtualizedTableBody = ({
-  table,
   _containerRef,
   tableRows,
   visibleColumns,
@@ -52,10 +48,10 @@ export const VirtualizedTableBody = ({
   selectedCell,
   setSelectedCell,
   setEditingCell,
-  addRow,
-  bulkAddRows,
-  isBulkInserting,
-  addColumn,
+  _addRow,
+  _bulkAddRows,
+  _isBulkInserting,
+  _bulkInsertProgress,
   searchTerm,
   _view,
   sorts = [],
@@ -121,49 +117,11 @@ export const VirtualizedTableBody = ({
     <div
       style={{
         width: columnVirtualizer.getTotalSize() + 40,
-        height: rowVirtualizer.getTotalSize() + 40,
+        height: rowVirtualizer.getTotalSize(),
         position: "relative",
       }}
     >
-      <div className="absolute top-0 left-0 w-10 h-10 bg-gray-50 border-r border-b flex items-center justify-center font-bold z-10">
-        #
-      </div>
-
-      {table.getHeaderGroups().map((group) =>
-        vCols.map((vc) => {
-          const isRightmost = vc.index === visibleColumns.length;
-          const header = group.headers[vc.index];
-
-          const isSortedColumn = header && sorts.some(s => s.columnId === header.column.id);
-          const isFilteredColumn = header && filters.some(f => f.columnId === header.column.id);
-          
-          return (
-            <div
-              key={vc.key}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: vc.start + 40,
-                width: vc.size,
-                height: 40,
-                padding: "0 8px",
-                fontWeight: 500,
-                zIndex: 1,
-                display: "flex",
-                alignItems: "center",
-                backgroundColor: isFilteredColumn ? "#d1fae5" : isSortedColumn ? "#FFEFE6" : "white", // green-100 for filtered, peach for sorted
-              }}
-            >
-              {isRightmost ? (
-                <AddColumnForm onAddColumn={addColumn} />
-              ) : (
-                header &&
-                flexRender(header.column.columnDef.header, header.getContext())
-              )}
-            </div>
-          );
-        })
-      )}
+      {/* Headers are now rendered in EditableTable as sticky elements */}
 
       {vRows.map((vr) => {
         const isBottomRow = vr.index === tableRows.length;
@@ -172,18 +130,16 @@ export const VirtualizedTableBody = ({
         return (
           <React.Fragment key={vr.key}>
             <RowHeader
-              top={vr.start + 40}
+              top={vr.start}
               height={vr.size}
               rowIndex={vr.index}
               isBottomRow={isBottomRow}
-              addRow={addRow}
-              bulkAddRows={bulkAddRows}
-              isBulkInserting={isBulkInserting}
             />
 
             {vCols.map((vc) => {
               const col = visibleColumns[vc.index];
               const isRightmost = vc.index === visibleColumns.length;
+              
               if (!col || isBottomRow || isRightmost || !row) return null;
 
               const cell = row.getVisibleCells().find((c) => c.column.id === col.id);
@@ -215,7 +171,7 @@ export const VirtualizedTableBody = ({
                   searchTerm={searchTerm}
                   style={{
                     position: "absolute",
-                    top: vr.start + 40,
+                    top: vr.start,
                     left: vc.start + 40,
                     width: vc.size,
                     height: vr.size,

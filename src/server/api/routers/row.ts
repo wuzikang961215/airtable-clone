@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { faker } from "@faker-js/faker";
 import {
   createTRPCRouter,
   publicProcedure,
@@ -33,6 +34,9 @@ const sortSchema = z.object({
 
 type Filter = z.infer<typeof filterSchema>;
 type Sort = z.infer<typeof sortSchema>;
+
+// Store bulk insert progress in memory (in production, use Redis or similar)
+const bulkInsertProgress = new Map<string, { current: number; total: number; tableId: string }>();
 
 
 export const rowRouter = createTRPCRouter({
@@ -270,14 +274,10 @@ export const rowRouter = createTRPCRouter({
           const fieldName = sort.columnType === "text" ? '"flattenedValueText"' : '"flattenedValueNumber"';
           
           if (sort.columnType === "text") {
-            // For text columns, we need to handle empty strings specially
-            if (sort.direction === "asc") {
-              // ASC: empty strings first, then ordered values
-              return `CASE WHEN ${alias}.${fieldName} = '' THEN 0 ELSE 1 END, ${alias}.${fieldName} ${sort.direction.toUpperCase()}`;
-            } else {
-              // DESC: ordered values first, then empty strings
-              return `CASE WHEN ${alias}.${fieldName} = '' THEN 1 ELSE 0 END, ${alias}.${fieldName} ${sort.direction.toUpperCase()}`;
-            }
+            // For text columns, use standard ordering with NULLS positioning
+            // Empty strings will naturally sort at the beginning for ASC, end for DESC
+            const nullsPosition = sort.direction === "asc" ? "NULLS FIRST" : "NULLS LAST";
+            return `${alias}.${fieldName} ${sort.direction.toUpperCase()} ${nullsPosition}`;
           } else {
             // For number columns, use NULLS positioning
             const nullsPosition = sort.direction === "desc" ? "NULLS LAST" : "NULLS FIRST";
@@ -405,52 +405,172 @@ export const rowRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       console.log(`Starting bulk insert of ${input.count} rows for table ${input.tableId}`);
       
-      // Get columns for cell creation
-      const columns = await ctx.prisma.column.findMany({
-        where: { tableId: input.tableId, isDeleted: false },
-        select: { id: true, type: true }
-      });
+      // Create a unique progress ID for this operation
+      const progressId = `${input.tableId}-${Date.now()}`;
+      bulkInsertProgress.set(progressId, { current: 0, total: input.count, tableId: input.tableId });
       
-      if (columns.length === 0) {
-        throw new Error("Table has no columns");
-      }
-      
-      // No order field in Row model, so we'll just create rows without ordering
-      
-      // Batch insert for performance
-      const batchSize = 1000;
-      const totalBatches = Math.ceil(input.count / batchSize);
-      
-      for (let batch = 0; batch < totalBatches; batch++) {
+      try {
+        // Get columns for cell creation
+        const columns = await ctx.prisma.column.findMany({
+          where: { tableId: input.tableId, isDeleted: false },
+          select: { id: true, type: true, name: true }
+        });
+        
+        if (columns.length === 0) {
+          throw new Error("Table has no columns");
+        }
+        
+        // Batch insert for performance - larger batches now that we use efficient SQL
+        const batchSize = 5000; // Increased from 1000
+        const totalBatches = Math.ceil(input.count / batchSize);
+        
+        for (let batch = 0; batch < totalBatches; batch++) {
         const currentBatchSize = Math.min(batchSize, input.count - (batch * batchSize));
         
-        // Create rows - let database generate IDs
-        const rows = Array.from({ length: currentBatchSize }, () => ({
-          tableId: input.tableId
-        }));
+        // Use raw SQL for efficient bulk insert with RETURNING to get IDs
+        const rowInsertQuery = `
+          INSERT INTO "Row" ("id", "tableId", "createdAt", "isDeleted")
+          SELECT 
+            gen_random_uuid(),
+            $1::text,
+            NOW(),
+            false
+          FROM generate_series(1, $2::int)
+          RETURNING id
+        `;
         
-        // Create rows and get their IDs
-        const createdRows = await ctx.prisma.$transaction(
-          rows.map(rowData => ctx.prisma.row.create({ data: rowData }))
+        const createdRows = await ctx.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          rowInsertQuery,
+          input.tableId,
+          currentBatchSize
         );
         
-        // Create empty cells for each row/column combination
+        // Create cells with sample data for each row/column combination
         const cells = createdRows.flatMap(row => 
-          columns.map(col => ({
-            rowId: row.id,
-            columnId: col.id,
-            value: "",
-            flattenedValueText: col.type === "text" ? "" : null,
-            flattenedValueNumber: col.type === "number" ? null : null
-          }))
+          columns.map(col => {
+            let value = "";
+            let flattenedValueText: string | null = null;
+            let flattenedValueNumber: number | null = null;
+            
+            // Generate sample data based on column name and type
+            if (col.type === "text") {
+              // Generate text data based on column name
+              const colNameLower = col.name.toLowerCase();
+              if (colNameLower.includes("name")) {
+                value = faker.person.fullName();
+              } else if (colNameLower.includes("email")) {
+                value = faker.internet.email();
+              } else if (colNameLower.includes("country")) {
+                value = faker.location.country();
+              } else if (colNameLower.includes("city")) {
+                value = faker.location.city();
+              } else if (colNameLower.includes("company")) {
+                value = faker.company.name();
+              } else if (colNameLower.includes("job") || colNameLower.includes("title")) {
+                value = faker.person.jobTitle();
+              } else {
+                // Default text: random word
+                value = faker.lorem.words(3);
+              }
+              flattenedValueText = value;
+            } else if (col.type === "number") {
+              // Generate number data based on column name
+              const colNameLower = col.name.toLowerCase();
+              if (colNameLower.includes("age")) {
+                value = String(faker.number.int({ min: 18, max: 65 }));
+              } else if (colNameLower.includes("price") || colNameLower.includes("cost")) {
+                value = faker.commerce.price({ min: 10, max: 1000, dec: 2 });
+              } else if (colNameLower.includes("quantity") || colNameLower.includes("count")) {
+                value = String(faker.number.int({ min: 1, max: 100 }));
+              } else if (colNameLower.includes("rating")) {
+                value = faker.number.float({ min: 1, max: 5, fractionDigits: 1 }).toString();
+              } else {
+                // Default number: random between 1-1000
+                value = String(faker.number.int({ min: 1, max: 1000 }));
+              }
+              flattenedValueNumber = parseFloat(value);
+            }
+            
+            return {
+              rowId: row.id,
+              columnId: col.id,
+              value,
+              flattenedValueText,
+              flattenedValueNumber
+            };
+          })
         );
         
-        await ctx.prisma.cell.createMany({ data: cells });
+        // Batch cell creation in chunks of 10k for better performance
+        const cellBatchSize = 10000;
+        for (let i = 0; i < cells.length; i += cellBatchSize) {
+          const cellBatch = cells.slice(i, i + cellBatchSize);
+          await ctx.prisma.cell.createMany({ 
+            data: cellBatch,
+            skipDuplicates: true // In case of any duplicate row/column combinations
+          });
+        }
         
-        console.log(`Completed batch ${batch + 1}/${totalBatches}`);
+        // Update progress
+        const currentProgress = (batch + 1) * batchSize;
+        const actualProgress = Math.min(currentProgress, input.count);
+        bulkInsertProgress.set(progressId, { 
+          current: actualProgress, 
+          total: input.count, 
+          tableId: input.tableId 
+        });
+        console.log(`Progress update: ${actualProgress}/${input.count} (${Math.round((actualProgress/input.count)*100)}%)`);
+        
+        console.log(`Completed batch ${batch + 1}/${totalBatches} - Progress: ${actualProgress}/${input.count}`);
       }
       
       console.log(`Bulk insert completed: ${input.count} rows created`);
-      return { success: true, count: input.count };
+      
+      // Mark as complete instead of deleting immediately
+      bulkInsertProgress.set(progressId, { 
+        current: input.count, 
+        total: input.count, 
+        tableId: input.tableId 
+      });
+      
+      // Clean up after a delay to allow UI to show completion
+      setTimeout(() => {
+        bulkInsertProgress.delete(progressId);
+      }, 3000);
+      
+      return { success: true, count: input.count, progressId };
+      } catch (error) {
+        // Clean up progress on error
+        bulkInsertProgress.delete(progressId);
+        throw error;
+      }
+    }),
+    
+  getBulkInsertProgress: publicProcedure
+    .input(z.object({ tableId: z.string() }))
+    .query(({ input }) => {
+      // Find the most recent progress for this table
+      let latestProgress = null;
+      let latestTimestamp = 0;
+      
+      for (const [id, progress] of bulkInsertProgress) {
+        if (progress.tableId === input.tableId) {
+          // Extract timestamp from progress ID (format: tableId-timestamp)
+          const timestamp = parseInt(id.split('-').pop() ?? '0');
+          if (timestamp > latestTimestamp) {
+            latestTimestamp = timestamp;
+            latestProgress = progress;
+          }
+        }
+      }
+      
+      // Don't return completed progress that's older than 10 seconds
+      if (latestProgress && 
+          latestProgress.current >= latestProgress.total && 
+          Date.now() - latestTimestamp > 10000) {
+        return null;
+      }
+      
+      return latestProgress;
     }),
 });

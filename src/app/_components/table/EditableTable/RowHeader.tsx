@@ -1,14 +1,10 @@
 import React from "react";
-import { AddRowDropdown } from "../AddRowDropdown";
 
 type Props = {
   top: number;
   height: number;
   rowIndex: number;
   isBottomRow: boolean;
-  addRow: () => void;
-  bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
-  isBulkInserting: boolean;
 };
 
 export const RowHeader = ({
@@ -16,15 +12,12 @@ export const RowHeader = ({
   height,
   rowIndex,
   isBottomRow,
-  addRow,
-  bulkAddRows,
-  isBulkInserting,
 }: Props) => {
   return (
     <div
       style={{
         position: "absolute",
-        top,
+        top: top,
         left: 0,
         width: 40,
         height,
@@ -34,23 +27,11 @@ export const RowHeader = ({
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 500,
-        background: isBottomRow ? "#f9fafb" : "white",
+        background: "white",
+        zIndex: 1,
       }}
     >
-      {isBottomRow ? (
-        <AddRowDropdown
-          onAddRows={async (count) => {
-            if (count === 1) {
-              addRow();
-            } else {
-              await bulkAddRows(count);
-            }
-          }}
-          isLoading={isBulkInserting}
-        />
-      ) : (
-        rowIndex + 1
-      )}
+      {!isBottomRow && (rowIndex + 1)}
     </div>
   );
 };

@@ -108,8 +108,10 @@ model Cell {
   column   Column @relation(fields: [columnId], references: [id])
   row      Row    @relation(fields: [rowId], references: [id])
 
-  @@index([flattenedValueText])
-  @@index([flattenedValueNumber])
+  // Composite indexes for efficient sorting and filtering
+  @@index([columnId, flattenedValueText])
+  @@index([columnId, flattenedValueNumber])
+  @@index([rowId, columnId]) // For efficient cell lookups
 }
 
 

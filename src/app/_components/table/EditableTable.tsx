@@ -7,10 +7,11 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loader2 } from "lucide-react";
 import { useCellNavigation } from "./EditableTable/useCellNavigation";
 import { useColumnAndRowMaps } from "./EditableTable/useColumnAndRowMaps";
 import { VirtualizedTableBody } from "./EditableTable/VirtualizedTableBody";
+import { AddRowDropdown } from "./AddRowDropdown";
+import { AddColumnForm } from "./AddColumnForm";
 
 type Row = {
   id: string;
@@ -31,6 +32,8 @@ type Props = {
   addRow: () => void;
   bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
   isBulkInserting: boolean;
+  bulkInsertProgress?: { current: number; total: number; tableId: string } | null;
+  otherTableBulkInsert?: { total: number; tableId: string } | null;
   addColumn: (name: string, type: "text" | "number") => void;
   searchTerm: string;
   sorts?: { columnId: string; direction: string }[];
@@ -45,9 +48,11 @@ export const EditableTable = ({
   hasNextPage,
   isFetchingNextPage,
   updateCell,
-  addRow,
-  bulkAddRows,
+  addRow: originalAddRow,
+  bulkAddRows: originalBulkAddRows,
   isBulkInserting,
+  bulkInsertProgress,
+  otherTableBulkInsert,
   addColumn,
   searchTerm,
   sorts = [],
@@ -94,7 +99,7 @@ export const EditableTable = ({
   });
 
   const rowVirtualizer = useVirtualizer({
-    count: tableRows.length + 1,
+    count: tableRows.length,
     estimateSize: () => 40,
     getScrollElement: () => containerRef.current,
     overscan: 10,
@@ -122,8 +127,7 @@ export const EditableTable = ({
       }
     }
   }, [selectedCell, tableRows, visibleColumns]);
-
-
+  
 
   useCellNavigation({
     selectedCell,
@@ -178,12 +182,38 @@ export const EditableTable = ({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="overflow-auto relative border rounded max-h-[80vh] text-sm"
-    >
-      <VirtualizedTableBody
-        table={table} // ✅ REQUIRED
+    <div className="relative h-full max-h-[80vh] flex flex-col">
+      {/* Fixed header row */}
+      <div className="flex border-t border-l border-r rounded-t bg-white sticky top-0 z-20">
+        <div className="w-10 h-10 bg-gray-50 border-r border-b flex items-center justify-center font-bold">
+          #
+        </div>
+        {visibleColumnsOrdered.map((column) => {
+          const isSorted = sorts.some(s => s.columnId === column.id);
+          const isFiltered = filters.some(f => f.columnId === column.id);
+          return (
+            <div
+              key={column.id}
+              className="w-[150px] h-10 border-r border-b flex items-center px-2 font-medium"
+              style={{
+                backgroundColor: isFiltered ? "#d1fae5" : isSorted ? "#FFEFE6" : "white",
+              }}
+            >
+              {column.name}
+            </div>
+          );
+        })}
+        <div className="w-10 h-10 border-r border-b flex items-center justify-center">
+          <AddColumnForm onAddColumn={addColumn} />
+        </div>
+      </div>
+      
+      {/* Scrollable table area */}
+      <div
+        ref={containerRef}
+        className="overflow-auto relative border-l border-r flex-1 text-sm"
+      >
+        <VirtualizedTableBody
         _containerRef={containerRef}
         tableRows={tableRows}
         visibleColumns={visibleColumns}
@@ -196,31 +226,70 @@ export const EditableTable = ({
         selectedCell={selectedCell}
         setSelectedCell={setSelectedCell}
         setEditingCell={setEditingCell}
-        addRow={addRow}
-        bulkAddRows={bulkAddRows}
-        isBulkInserting={isBulkInserting}
-        addColumn={addColumn}
+        _addRow={originalAddRow}
+        _bulkAddRows={originalBulkAddRows}
+        _isBulkInserting={isBulkInserting}
+        _bulkInsertProgress={bulkInsertProgress}
         searchTerm={searchTerm}
         _view={null}
         sorts={sorts}
         filters={filters}
-      />
-      {isFetchingNextPage && (
-        <div className="text-center p-2 text-gray-500">Loading more…</div>
-      )}
-      {isBulkInserting && (
-        <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <div className="flex items-center gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              <div>
-                <p className="font-semibold">Adding 100,000 rows...</p>
-                <p className="text-sm text-gray-500">This may take a minute</p>
-              </div>
-            </div>
-          </div>
+        />
+        {isFetchingNextPage && (
+          <div className="text-center p-2 text-gray-500">Loading more…</div>
+        )}
+      </div>
+      
+      {/* Sticky footer row - outside scroll container */}
+      <div className="flex border-l border-r border-b rounded-b bg-white">
+        {/* Row number column - exactly 40px like header */}
+        <div className={`w-10 h-10 border-r flex items-center justify-center transition-colors ${isBulkInserting ? 'bg-blue-100' : 'bg-gray-50'}`}>
+          <AddRowDropdown
+            onAddRows={async (count) => {
+              if (count === 1) {
+                originalAddRow();
+              } else {
+                await originalBulkAddRows(count);
+              }
+            }}
+            isLoading={isBulkInserting}
+            progress={bulkInsertProgress}
+            isFooter={true}
+          />
         </div>
-      )}
+        {/* Fill the rest to match table width */}
+        <div className={`flex-1 h-10 transition-colors ${isBulkInserting ? 'bg-blue-50' : 'bg-gray-50'}`}>
+          {isBulkInserting && bulkInsertProgress ? (
+            <div className="px-4 py-2 text-sm text-blue-700 flex items-center gap-4">
+              <span className="font-medium">
+                Adding {bulkInsertProgress.total.toLocaleString()} rows:
+              </span>
+              <span className="text-blue-600">
+                {bulkInsertProgress.current.toLocaleString()} completed
+              </span>
+              <span className="text-blue-500">
+                ({Math.round((bulkInsertProgress.current / bulkInsertProgress.total) * 100)}%)
+              </span>
+              <div className="flex-1 max-w-xs">
+                <div className="w-full bg-blue-200 rounded-full h-1.5">
+                  <div 
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(bulkInsertProgress.current / bulkInsertProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <span className="text-xs text-blue-500">
+                You can navigate to other tables
+              </span>
+            </div>
+          ) : otherTableBulkInsert ? (
+            // Show hint if there's a bulk insert happening in another table
+            <div className="px-4 py-2 text-sm text-gray-600 italic">
+              Bulk inserting rows in another table...
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 };

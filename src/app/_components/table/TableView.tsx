@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "~/trpc/react";
 import { EditableTable } from "./EditableTable";
 import { useTableData } from "~/hooks/useTableData";
 import { ViewSelector } from "./ViewSelector";
+import { CompletionToast } from "../CompletionToast";
 
 type TableViewProps = {
   tableId: string;
@@ -15,6 +16,7 @@ type TableViewProps = {
 };
 
 export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = "" }: TableViewProps) => {
+  const [completionToast, setCompletionToast] = useState<{ message: string; count: number } | null>(null);
 
   const { data: views = [], isLoading: loadingViews } = api.view.getByTable.useQuery(
     { tableId },
@@ -45,10 +47,24 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
     isFetchingNextPage,
     updateCell,
     addRow,
-    bulkAddRows,
+    bulkAddRows: originalBulkAddRows,
     isBulkInserting,
+    bulkInsertProgress,
+    otherTableBulkInsert,
     addColumn,
   } = useTableData(tableId, activeViewId);
+  
+  // Wrap bulkAddRows to show completion toast
+  const bulkAddRows = useCallback(async (count: number) => {
+    const result = await originalBulkAddRows(count);
+    if (result.success) {
+      setCompletionToast({
+        message: `Successfully added ${result.count.toLocaleString()} rows!`,
+        count: result.count
+      });
+    }
+    return result;
+  }, [originalBulkAddRows]);
 
   const isReady =
     !loading &&
@@ -79,6 +95,8 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
         onViewChange={(viewId) => {
           const selectedView = views.find(v => v.id === viewId);
           if (selectedView) {
+            // Invalidate the view data to ensure fresh column order
+            void utils.view.getById.invalidate({ viewId });
             onViewChange(viewId, selectedView.name);
           }
         }}
@@ -88,7 +106,7 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
         }}
       />
 
-      <div className="flex-1">
+      <div className="flex-1 relative">
         {isReady ? (
           <EditableTable
             rows={rows}
@@ -101,6 +119,8 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
             addRow={addRow}
             bulkAddRows={bulkAddRows}
             isBulkInserting={isBulkInserting}
+            bulkInsertProgress={bulkInsertProgress}
+            otherTableBulkInsert={otherTableBulkInsert}
             addColumn={addColumn}
             searchTerm={searchTerm} // ✅ passed directly from props
             sorts={viewConfig?.sorts || []} // Pass sorts for highlighting
@@ -110,6 +130,18 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
           <div className="p-4 text-gray-500">
             {loading ? "Loading table data..." : "No columns found"}
           </div>
+        )}
+        
+        {/* Progress UI disabled - using completion toast instead */}
+        {/* <BulkInsertProgress isInserting={isBulkInserting} progress={bulkInsertProgress} /> */}
+        
+        {/* Completion toast */}
+        {completionToast && (
+          <CompletionToast
+            message={completionToast.message}
+            count={completionToast.count}
+            onClose={() => setCompletionToast(null)}
+          />
         )}
       </div>
     </div>

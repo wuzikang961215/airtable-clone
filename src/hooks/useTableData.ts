@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
+import { bulkInsertStore } from "~/lib/bulkInsertStore";
 
 // ─── Enhanced Types ─────────────────────────────────────────────────────
 type FlatRow = { id: string; [columnId: string]: string };
@@ -36,17 +37,31 @@ type ViewConfig = {
 
 export function useTableData(tableId: string, viewId?: string | null) {
   const utils = api.useUtils();
+  const [isBulkInserting, setIsBulkInserting] = useState(false);
 
   // ─── Fetch Columns ─────────────────────────────────────────────────────
   const {
     data: columns = [],
     isLoading: loadingColumns,
-  } = api.column.getByTable.useQuery({ tableId });
+  } = api.column.getByTable.useQuery(
+    { tableId },
+    {
+      // Ensure columns are fresh when switching views
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+      staleTime: 5000 // 5 seconds
+    }
+  );
 
   // ─── Fetch View Config ─────────────────────────────────────────────────
   const { data: view } = api.view.getById.useQuery(
     { viewId: viewId! },
-    { enabled: !!viewId && viewId.trim() !== "" }
+    { 
+      enabled: !!viewId && viewId.trim() !== "",
+      // Refetch when view changes to ensure fresh data
+      refetchOnMount: true,
+      staleTime: 0
+    }
   );
 
   const viewConfig = useMemo((): ViewConfig => {
@@ -250,14 +265,28 @@ export function useTableData(tableId: string, viewId?: string | null) {
   const addColumnMutation = api.column.add.useMutation({
     onSuccess: () => {
       void utils.column.getByTable.invalidate({ tableId });
+      // Invalidate all views for this table since column order is updated for all
+      void utils.view.getByTable.invalidate({ tableId });
+      // Also invalidate the current view to refresh its columnOrder
       if (viewId) {
         void utils.view.getById.invalidate({ viewId });
       }
+      // Invalidate row data to ensure new cells are fetched
+      void utils.row.getByTable.invalidate(rowQueryInput);
     },
   });
 
   const addRowMutation = api.row.add.useMutation();
   const bulkCreateRowsMutation = api.row.bulkCreateRows.useMutation();
+  
+  // Poll for bulk insert progress (always poll to detect inserts in other tables)
+  const { data: bulkInsertProgress } = api.row.getBulkInsertProgress.useQuery(
+    { tableId },
+    { 
+      refetchInterval: isBulkInserting ? 500 : 2000, // Poll faster when actively inserting
+      staleTime: 0
+    }
+  );
 
   // ─── Actions ───────────────────────────────────────────────────────────
   const updateCell = (rowId: string, columnId: string, value: string) => {
@@ -273,9 +302,15 @@ export function useTableData(tableId: string, viewId?: string | null) {
   };
 
   const bulkAddRows = (count: number) => {
+    setIsBulkInserting(true);
+    bulkInsertStore.setActive(tableId, count);
     return bulkCreateRowsMutation.mutateAsync({ tableId, count }, {
       onSuccess: () => {
         void utils.row.getByTable.invalidate(rowQueryInput);
+      },
+      onSettled: () => {
+        setIsBulkInserting(false);
+        bulkInsertStore.clear(tableId);
       },
     });
   };
@@ -309,6 +344,9 @@ export function useTableData(tableId: string, viewId?: string | null) {
     };
   };
 
+  // Check for bulk inserts in other tables
+  const otherTableBulkInsert = bulkInsertStore.getActiveForOtherTable(tableId);
+
   return {
     rowsById,
     columns,
@@ -321,7 +359,9 @@ export function useTableData(tableId: string, viewId?: string | null) {
     updateCell,
     addRow,
     bulkAddRows,
-    isBulkInserting: bulkCreateRowsMutation.isPending,
+    isBulkInserting: isBulkInserting || bulkCreateRowsMutation.isPending,
+    bulkInsertProgress,
+    otherTableBulkInsert,
     addColumn,
     // Helper functions for creating filters and sorts
     createTextFilter,
