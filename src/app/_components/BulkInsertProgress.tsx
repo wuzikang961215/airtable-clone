@@ -28,11 +28,12 @@ export const BulkInsertProgress = ({ isInserting, progress }: Props) => {
   }, [isComplete, progress]);
   
   // Show if inserting, has progress (but not complete), or showing completion
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   const shouldShow = isInserting || (progress && !isComplete) || showCompleted;
   if (!shouldShow) return null;
   
   // Use last completed count if showing completion state
-  const displayProgress = progress || (showCompleted && lastCompletedCount ? { current: lastCompletedCount, total: lastCompletedCount, tableId: "" } : null);
+  const displayProgress = progress ?? (showCompleted && lastCompletedCount ? { current: lastCompletedCount, total: lastCompletedCount, tableId: "" } : null);
   const isShowingComplete = showCompleted && !progress;
 
   return ReactDOM.createPortal(
@@ -52,7 +53,7 @@ export const BulkInsertProgress = ({ isInserting, progress }: Props) => {
         )}
         <div>
           <p className="font-semibold">
-            {isShowingComplete ? "Successfully added" : "Adding"} {displayProgress?.total.toLocaleString() || "rows"}{isShowingComplete ? "!" : "..."}
+            {isShowingComplete ? "Successfully added" : "Adding"} {displayProgress?.total.toLocaleString() ?? "rows"}{isShowingComplete ? "!" : "..."}
           </p>
           <p className="text-sm text-gray-500">
             {isShowingComplete ? "All rows have been inserted" : "Please wait while we insert the rows"}
