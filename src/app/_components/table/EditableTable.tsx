@@ -289,7 +289,7 @@ export const EditableTable = ({
           ) : isAddingColumn && columnAddProgress ? (
             <div className="px-4 py-2 text-sm text-green-700 flex items-center gap-4">
               <span className="font-medium">
-                Adding column "{columnAddProgress.columnName}":
+                Adding column &ldquo;{columnAddProgress.columnName}&rdquo;:
               </span>
               <span className="text-green-600">
                 {columnAddProgress.current.toLocaleString()} / {columnAddProgress.total.toLocaleString()} cells
