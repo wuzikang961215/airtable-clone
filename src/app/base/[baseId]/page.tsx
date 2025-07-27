@@ -13,11 +13,18 @@ import {
   X,
   ArrowUpDown,
   EyeOff,
+  Filter as FilterIcon,
+  Layers,
+  Palette,
+  Share2,
+  Search,
+  Loader2,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { api } from "~/trpc/react";
 import { TableView } from "~/app/_components/table/TableView";
+import { CreateTableModal } from "~/app/_components/CreateTableModal";
 import type { Sort, Filter } from "~/hooks/useTableData";
 import {
   DropdownMenu,
@@ -45,6 +52,8 @@ export default function BaseTabsPage() {
   const [filterColumn, setFilterColumn] = useState<string>("");
   const [filterOperator, setFilterOperator] = useState<string>("");
   const [filterValue, setFilterValue] = useState<string>("");
+  const [createTableModalOpen, setCreateTableModalOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
 
   const utils = api.useUtils();
   const updateView = api.view.updateConfig.useMutation();
@@ -61,7 +70,7 @@ export default function BaseTabsPage() {
 
   const activeTableId = selectedTableId ?? tables?.[0]?.id ?? null;
 
-  const { data: views = [] } = api.view.getByTable.useQuery(
+  const { data: _views = [] } = api.view.getByTable.useQuery(
     { tableId: activeTableId ?? "" },
     { enabled: !!activeTableId }
   );
@@ -83,12 +92,13 @@ export default function BaseTabsPage() {
     }
   }, [tables, selectedTableId]);
 
+  // Reset activeViewId when switching tables
   useEffect(() => {
-    if (!activeViewId && views?.[0]) {
-      setActiveViewId(views[0].id);
-      setActiveViewName(views[0].name);
+    if (selectedTableId) {
+      setActiveViewId(null);
+      setActiveViewName("Grid view");
     }
-  }, [views, activeViewId]);
+  }, [selectedTableId]);
 
   // Don't initialize tempHiddenColumns here - it will be set when dropdown opens
 
@@ -111,12 +121,30 @@ export default function BaseTabsPage() {
     },
   });
 
-  const handleAddTable = async () => {
-    const name = prompt("Enter new table name:");
-    if (name && baseId) {
-      const newTable = await createTable.mutateAsync({ baseId, name });
-      setSelectedTableId(newTable.id);
+  const handleAddTable = () => {
+    setCreateTableModalOpen(true);
+  };
+
+  const handleCreateTable = async (data: { name: string; description?: string }) => {
+    if (baseId) {
+      const newTable = await createTable.mutateAsync({ baseId, name: data.name });
+      
+      // Clear any filters/sorts from previous table
+      setSearchTerm("");
+      setFilterColumn("");
+      setFilterOperator("");
+      setFilterValue("");
+      
+      // Reset view state to ensure the new table loads with its default view
+      setActiveViewId(null);
       setActiveViewName("Grid view");
+      
+      // Switch to the new table - this will trigger the useEffect to reset activeViewId
+      setSelectedTableId(newTable.id);
+      setCreateTableModalOpen(false);
+      
+      // Invalidate views query to ensure fresh data for the new table
+      await utils.view.getByTable.invalidate({ tableId: newTable.id });
     }
   };
 
@@ -187,6 +215,7 @@ export default function BaseTabsPage() {
       {
         onSuccess: () => {
           void utils.view.getById.invalidate({ viewId: activeViewId });
+          void utils.row.getByTable.invalidate({ tableId: activeTableId! });
         },
       }
     );
@@ -200,6 +229,7 @@ export default function BaseTabsPage() {
       {
         onSuccess: () => {
           void utils.view.getById.invalidate({ viewId: activeViewId });
+          void utils.row.getByTable.invalidate({ tableId: activeTableId! });
         },
       }
     );
@@ -224,25 +254,27 @@ export default function BaseTabsPage() {
     [activeViewId, activeTableId, updateView, utils.view.getById, utils.row.getByTable]
   );
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchTerm(val);
-    debouncedSearch(val);
-  };
 
   if (!baseId || loadingBase || loadingTables || !base || !tables) {
-    return <p className="p-6 text-gray-500">Loading...</p>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <p className="text-sm text-gray-500">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <aside className="w-16 bg-white border-r flex flex-col items-center py-4 space-y-6">
         <Table className="text-gray-600" />
         <LayoutGrid className="text-gray-400" />
         <CircleUser className="text-gray-400" />
       </aside>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {/* Navbar */}
         <div className="border-b px-6 py-2 bg-white flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -300,9 +332,6 @@ export default function BaseTabsPage() {
                       size="sm"
                       onClick={() => {
                         setSelectedTableId(t.id);
-                        // Reset view state - TableView will initialize with first view
-                        setActiveViewId(null);
-                        setActiveViewName("Grid view");
                       }}
                       className="rounded-md px-4 py-1 text-sm text-[#b35c4e] hover:bg-[#ffd7c4]"
                     >
@@ -369,7 +398,8 @@ export default function BaseTabsPage() {
                 }
               }}>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
+                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100 flex items-center gap-1.5">
+                    <EyeOff className="w-4 h-4" />
                     Hide fields
                     {view?.hiddenColumns && Array.isArray(view.hiddenColumns) && view.hiddenColumns.length > 0 && (
                       <span className="ml-1 px-1.5 py-0.5 text-xs rounded" style={{ backgroundColor: "#e5e7eb", color: "#4b5563" }}>
@@ -471,6 +501,7 @@ export default function BaseTabsPage() {
                             }
                           );
                         }}
+                        className="bg-[#2D7FF9] hover:bg-[#2368C4] text-white"
                       >
                         Apply
                       </Button>
@@ -481,7 +512,8 @@ export default function BaseTabsPage() {
               {/* Filter Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
+                  <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100 flex items-center gap-1.5">
+                    <FilterIcon className="w-4 h-4" />
                     Filter
                     {view?.filters && (view.filters as Filter[]).length > 0 && (
                       <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">
@@ -496,7 +528,7 @@ export default function BaseTabsPage() {
                     {view?.filters && (view.filters as Filter[]).length > 0 && (
                       <div className="space-y-2 pb-3 border-b">
                         <div className="text-sm font-medium">Active Filters</div>
-                        {(view.filters as Filter[]).map((filter, index) => {
+                        {(view.filters as Filter[]).map((filter: Filter, index) => {
                           const column = columns.find(c => c.id === filter.columnId);
                           return (
                             <div key={index} className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded">
@@ -601,6 +633,7 @@ export default function BaseTabsPage() {
                           }
                         }}
                         disabled={!filterColumn || !filterOperator}
+                        className="bg-[#2D7FF9] hover:bg-[#2368C4] text-white"
                       >
                         Add Filter
                       </Button>
@@ -623,7 +656,10 @@ export default function BaseTabsPage() {
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Group</Button>
+              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100 flex items-center gap-1.5">
+                <Layers className="w-4 h-4" />
+                Group
+              </Button>
 
               {/* Sort Dropdown - Airtable Style */}
               <DropdownMenu>
@@ -801,24 +837,68 @@ export default function BaseTabsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Color</Button>
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">Share and sync</Button>
+              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100 flex items-center gap-1.5">
+                <Palette className="w-4 h-4" />
+                Color
+              </Button>
+              <Button variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100 flex items-center gap-1.5">
+                <Share2 className="w-4 h-4" />
+                Share and sync
+              </Button>
 
-              <Input
-                placeholder="Search"
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="w-40 h-8 text-sm placeholder:text-gray-400 bg-gray-100 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-400"
-              />
+              <DropdownMenu open={searchModalOpen} onOpenChange={setSearchModalOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-gray-600 hover:bg-gray-100"
+                  >
+                    <Search className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80 p-4" align="end">
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">Find in view</div>
+                    <Input
+                      placeholder="Search..."
+                      value={searchTerm}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSearchTerm(val);
+                        debouncedSearch(val);
+                      }}
+                      autoFocus
+                      className="w-full"
+                    />
+                    {searchTerm && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          Searching for &ldquo;{searchTerm}&rdquo;
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSearchTerm("");
+                            debouncedSearch("");
+                          }}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         )}
 
         {/* Table Content */}
         <div className="flex flex-1 bg-white overflow-hidden">
-          <div className="flex-1 overflow-auto">
-            {activeTableId && (
-              <TableView
+          {activeTableId && (
+            <TableView
                 tableId={activeTableId}
                 activeViewId={activeViewId}
                 onViewChange={(viewId, viewName) => {
@@ -829,9 +909,16 @@ export default function BaseTabsPage() {
                 sorts={(view?.sorts as Sort[] | undefined) ?? []}
               />
             )}
-          </div>
         </div>
       </main>
+
+      {/* Create Table Modal */}
+      <CreateTableModal
+        open={createTableModalOpen}
+        onOpenChange={setCreateTableModalOpen}
+        onCreateTable={handleCreateTable}
+        isCreating={createTable.isPending}
+      />
     </div>
   );
 }

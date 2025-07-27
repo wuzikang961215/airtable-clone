@@ -220,6 +220,9 @@ export function useTableData(tableId: string, viewId?: string | null) {
     return output;
   }, [rowPages]);
 
+  // Get total count from the first page
+  const totalRowCount = rowPages?.pages[0]?.totalCount ?? 0;
+
   // ─── Mutations ─────────────────────────────────────────────────────────
   const updateCellMutation = api.cell.update.useMutation({
     onMutate: async (newCell) => {
@@ -262,19 +265,7 @@ export function useTableData(tableId: string, viewId?: string | null) {
     },
   });
 
-  const addColumnMutation = api.column.add.useMutation({
-    onSuccess: () => {
-      void utils.column.getByTable.invalidate({ tableId });
-      // Invalidate all views for this table since column order is updated for all
-      void utils.view.getByTable.invalidate({ tableId });
-      // Also invalidate the current view to refresh its columnOrder
-      if (viewId) {
-        void utils.view.getById.invalidate({ viewId });
-      }
-      // Invalidate row data to ensure new cells are fetched
-      void utils.row.getByTable.invalidate(rowQueryInput);
-    },
-  });
+  const addColumnMutation = api.column.add.useMutation();
 
   // Poll for column addition progress
   const { data: columnAddProgress } = api.column.getColumnAddProgress.useQuery(
@@ -303,11 +294,58 @@ export function useTableData(tableId: string, viewId?: string | null) {
   };
 
   const addRow = () => {
+    // Generate a temporary ID for optimistic update
+    const tempRowId = `temp-${Date.now()}`;
+    
+    // Optimistically add the row to the cache
+    utils.row.getByTable.setInfiniteData(rowQueryInput, (old) => {
+      if (!old) return old;
+      
+      // Create optimistic row with empty cells
+      const newRow = {
+        id: tempRowId,
+        tableId,
+        createdAt: new Date(),
+        isDeleted: false,
+        cells: columns.map(col => ({
+          id: `temp-cell-${col.id}`,
+          rowId: tempRowId,
+          columnId: col.id,
+          value: "",
+          flattenedValueText: col.type === "text" ? "" : null,
+          flattenedValueNumber: col.type === "number" ? null : null,
+        }))
+      };
+      
+      return {
+        ...old,
+        pages: old.pages.map((page, index) => {
+          // Add to the last page
+          if (index === old.pages.length - 1) {
+            return {
+              ...page,
+              rows: [...page.rows, newRow]
+            };
+          }
+          return page;
+        }),
+      };
+    });
+    
+    // Now mutate to create the real row
     void addRowMutation.mutate({ tableId }, {
       onSuccess: () => {
+        // Invalidate to replace temp row with real data
+        void utils.row.getByTable.invalidate(rowQueryInput);
+      },
+      onError: () => {
+        // On error, invalidate to remove the optimistic row
         void utils.row.getByTable.invalidate(rowQueryInput);
       },
     });
+    
+    // Return the temp ID so the UI can scroll to it immediately
+    return tempRowId;
   };
 
   const bulkAddRows = (count: number) => {
@@ -325,7 +363,19 @@ export function useTableData(tableId: string, viewId?: string | null) {
   };
 
   const addColumn = (name: string, type: "text" | "number") => {
-    void addColumnMutation.mutate({ tableId, name, type });
+    // Create the actual column
+    void addColumnMutation.mutate({ tableId, name, type }, {
+      onSuccess: () => {
+        // Invalidate columns to get fresh data
+        void utils.column.getByTable.invalidate({ tableId });
+        // Invalidate view to get updated column order
+        if (viewId) {
+          void utils.view.getById.invalidate({ viewId });
+        }
+        // Invalidate row data to fetch the new cells
+        void utils.row.getByTable.invalidate(rowQueryInput);
+      }
+    });
   };
 
   // ─── Helper Functions ──────────────────────────────────────────────────
@@ -374,6 +424,7 @@ export function useTableData(tableId: string, viewId?: string | null) {
     addColumn,
     isAddingColumn: addColumnMutation.isPending,
     columnAddProgress,
+    totalRowCount,
     // Helper functions for creating filters and sorts
     createTextFilter,
     createNumberFilter,

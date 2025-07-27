@@ -340,10 +340,26 @@ export const rowRouter = createTRPCRouter({
         cells: cellsByRow[row.id] ?? [],
       }));
 
+      // Get total count for the same query conditions
+      const countQuery = `
+        SELECT COUNT(DISTINCT r."id") as count
+        FROM "Row" r
+        ${joinClause}
+        WHERE ${whereConditions.join(" AND ")}
+      `;
+      
+      const countResult = await ctx.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        countQuery,
+        ...queryParams.slice(0, -1) // Exclude the limit parameter
+      );
+      
+      const totalCount = Number(countResult[0]?.count ?? 0);
+
       return {
         rows: rowsWithCells,
         nextCursor: rows.length === limit ? rows[rows.length - 1]?.id ?? null : null,
         nextOffset: rows.length === limit ? rows.length : null,
+        totalCount,
       };
     }),
 

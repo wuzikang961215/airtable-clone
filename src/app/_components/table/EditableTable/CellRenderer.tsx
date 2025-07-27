@@ -14,6 +14,7 @@ type Props = {
   getNextCellKey: (key: CellKey, dir: "right" | "left" | "down" | "up") => CellKey | null;
   searchTerm?: string;
   style: React.CSSProperties;
+  columnType: string;
 };
 
 export const CellRenderer = ({
@@ -26,6 +27,7 @@ export const CellRenderer = ({
   getNextCellKey,
   searchTerm = "",
   style,
+  columnType,
 }: Props) => {
   const cellValue = cell.getValue();
   const cellKey = {
@@ -78,17 +80,18 @@ export const CellRenderer = ({
       }}
       style={{
         ...style,
-        padding: "0 8px",
-        borderRight: "1px solid #eee",
-        borderBottom: "1px solid #eee",
+        padding: isSelected ? "0 7px" : "0 8px", // Adjust padding when selected to account for thicker border
+        borderRight: "1px solid #E5E5E5",
+        borderBottom: "1px solid #E5E5E5",
         display: "flex",
         alignItems: "center",
         overflow: "hidden",
         whiteSpace: "nowrap",
         textOverflow: "ellipsis",
-        border: isSelected ? "2px solid #3b82f6" : "1px solid #eee",
         outline: "none",
-        background: matchesSearch ? "#FEF3C7" : (style.backgroundColor ?? "white"), // yellow-100 if matched, otherwise use passed background or white
+        boxSizing: "border-box",
+        boxShadow: isSelected ? "inset 0 0 0 2px #2D7FF9" : "none", // Use box-shadow instead of border to preserve grid lines
+        backgroundColor: matchesSearch ? "#FEF3C7" : (isSelected ? "#E8F2FF" : (style.backgroundColor ?? "white")),
       }}
       title={
         typeof cellValue === "string" || typeof cellValue === "number"
@@ -107,9 +110,10 @@ export const CellRenderer = ({
             updateCell(cellKey.rowId, cellKey.columnId, newVal)
           }
           onBlur={() => setEditingCell(null)}
+          columnType={columnType}
         />
       ) : (
-        <span className="truncate block w-full">
+        <span className="truncate block w-full text-[13px] text-[#333333]">
           {typeof cellValue === "string" || typeof cellValue === "number"
             ? String(cellValue)
             : ""}

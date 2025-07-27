@@ -6,6 +6,7 @@ import { EditableTable } from "./EditableTable";
 import { useTableData } from "~/hooks/useTableData";
 import { ViewSelector } from "./ViewSelector";
 import { CompletionToast } from "../CompletionToast";
+import { Loader2 } from "lucide-react";
 
 type TableViewProps = {
   tableId: string;
@@ -54,6 +55,7 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
     addColumn,
     isAddingColumn,
     columnAddProgress,
+    totalRowCount,
   } = useTableData(tableId, activeViewId);
   
   // Wrap bulkAddRows to show completion toast
@@ -85,11 +87,11 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
   }), [viewConfig]);
 
   if (!activeViewId || loadingViews) {
-    return <div className="p-4 text-gray-500">Loading view...</div>;
+    return null;
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-white overflow-hidden">
       <ViewSelector
         tableId={tableId}
         views={views}
@@ -108,8 +110,15 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
         }}
       />
 
-      <div className="flex-1 relative">
-        {isReady ? (
+      <div className="flex-1 relative overflow-hidden">
+        {loading && !isReady ? (
+          <div className="bg-white h-full p-4">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-500">Loading table data...</p>
+            </div>
+          </div>
+        ) : (
           <EditableTable
             rows={rows}
             columns={columns}
@@ -129,11 +138,9 @@ export const TableView = ({ tableId, activeViewId, onViewChange, searchTerm = ""
             searchTerm={searchTerm} // ✅ passed directly from props
             sorts={viewConfig?.sorts || []} // Pass sorts for highlighting
             filters={viewConfig?.filters || []} // Pass filters for highlighting
+            isLoading={false}
+            totalRowCount={totalRowCount}
           />
-        ) : (
-          <div className="p-4 text-gray-500">
-            {loading ? "Loading table data..." : "No columns found"}
-          </div>
         )}
         
         {/* Progress UI disabled - using completion toast instead */}

@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Loader2 } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuTrigger, 
   DropdownMenuContent 
 } from "~/components/ui/dropdown-menu";
-import { Button } from "~/components/ui/button";
 
 type Props = {
   onAddRows: (count: number) => void | Promise<void>;
@@ -16,13 +16,19 @@ type Props = {
 };
 
 export const AddRowDropdown = ({ onAddRows, isLoading = false, isFooter = false }: Props) => {
+  const [open, setOpen] = useState(false);
   // Show detailed progress info
   // const progressPercent = progress ? Math.round((progress.current / progress.total) * 100) : 0;
   // const formatNumber = (num: number) => num.toLocaleString();
   
+  const handleAddRows = (count: number) => {
+    void onAddRows(count);
+    setOpen(false); // Close dropdown after action
+  };
+
   if (isFooter) {
     return (
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button className="w-full h-full flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-600">
             {isLoading ? (
@@ -32,53 +38,49 @@ export const AddRowDropdown = ({ onAddRows, isLoading = false, isFooter = false 
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-48">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => onAddRows(1)}
+        <DropdownMenuContent className="w-48 p-1">
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+            onClick={() => handleAddRows(1)}
             disabled={isLoading}
           >
-            ➕ Add 1 Row
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => onAddRows(100)}
+            Add 1 row
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+            onClick={() => handleAddRows(100)}
             disabled={isLoading}
           >
-            📊 Add 100 Rows
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => onAddRows(5000)}
+            Add 100 rows
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+            onClick={() => handleAddRows(5000)}
             disabled={isLoading}
           >
             {isLoading ? (
-              <>
+              <span className="flex items-center">
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Adding rows...
-              </>
+              </span>
             ) : (
-              "📈 Add 5k Rows"
+              "Add 5,000 rows"
             )}
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => onAddRows(100000)}
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+            onClick={() => handleAddRows(100000)}
             disabled={isLoading}
           >
-            🚀 Add 100k Rows
-          </Button>
+            Add 100,000 rows
+          </button>
         </DropdownMenuContent>
       </DropdownMenu>
     );
   }
   
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         {isLoading ? (
           <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
@@ -86,46 +88,42 @@ export const AddRowDropdown = ({ onAddRows, isLoading = false, isFooter = false 
           <Plus className="w-4 h-4 text-gray-500 cursor-pointer" />
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-48">
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={() => onAddRows(1)}
+      <DropdownMenuContent className="w-48 p-1">
+        <button
+          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+          onClick={() => handleAddRows(1)}
           disabled={isLoading}
         >
-          ➕ Add 1 Row
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={() => onAddRows(100)}
+          Add 1 row
+        </button>
+        <button
+          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+          onClick={() => handleAddRows(100)}
           disabled={isLoading}
         >
-          📊 Add 100 Rows
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={() => onAddRows(5000)}
+          Add 100 rows
+        </button>
+        <button
+          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+          onClick={() => handleAddRows(5000)}
           disabled={isLoading}
         >
           {isLoading ? (
-            <>
+            <span className="flex items-center">
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Adding rows...
-            </>
+            </span>
           ) : (
-            "📈 Add 5k Rows"
+            "Add 5,000 rows"
           )}
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={() => onAddRows(100000)}
+        </button>
+        <button
+          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+          onClick={() => handleAddRows(100000)}
           disabled={isLoading}
         >
-          🚀 Add 100k Rows
-        </Button>
+          Add 100,000 rows
+        </button>
       </DropdownMenuContent>
     </DropdownMenu>
   );

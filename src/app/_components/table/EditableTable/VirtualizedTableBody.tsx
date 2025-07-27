@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { Row, Column } from "@tanstack/react-table";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { RowHeader } from "./RowHeader";
@@ -23,7 +23,7 @@ type Props = {
   selectedCell: CellKey | null;
   setSelectedCell: (cell: CellKey) => void;
   setEditingCell: (cell: CellKey | null) => void;
-  _addRow: () => void;
+  _addRow: () => string;
   _bulkAddRows: (count: number) => Promise<{ success: boolean; count: number }>;
   _isBulkInserting: boolean;
   _bulkInsertProgress?: { current: number; total: number; tableId: string } | null;
@@ -33,6 +33,7 @@ type Props = {
   } | null;
   sorts?: { columnId: string; direction: string }[];
   filters?: { columnId: string; operator: string; value?: string | number }[];
+  columnTypeMap: Map<string, string>;
 };
 
 export const VirtualizedTableBody = ({
@@ -56,7 +57,10 @@ export const VirtualizedTableBody = ({
   _view,
   sorts = [],
   filters = [],
+  columnTypeMap,
 }: Props) => {
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
+  
   const getNextCellKey = (
     current: CellKey,
     direction: "right" | "left" | "down" | "up"
@@ -116,7 +120,7 @@ export const VirtualizedTableBody = ({
   return (
     <div
       style={{
-        width: columnVirtualizer.getTotalSize() + 40,
+        width: columnVirtualizer.getTotalSize() + 48,
         height: rowVirtualizer.getTotalSize(),
         position: "relative",
       }}
@@ -128,9 +132,21 @@ export const VirtualizedTableBody = ({
         const row = tableRows[vr.index];
 
         return (
-          <React.Fragment key={vr.key}>
+          <div 
+            key={vr.key}
+            onMouseEnter={() => row && setHoveredRowId(row.original.id)}
+            onMouseLeave={() => setHoveredRowId(null)}
+            style={{ 
+              position: "absolute", 
+              top: vr.start, 
+              height: vr.size, 
+              width: "100%",
+              backgroundColor: row && hoveredRowId === row.original.id ? "#F7F7F7" : "transparent",
+              transition: "background-color 0.1s"
+            }}
+          >
             <RowHeader
-              top={vr.start}
+              top={0}
               height={vr.size}
               rowIndex={vr.index}
               isBottomRow={isBottomRow}
@@ -169,13 +185,16 @@ export const VirtualizedTableBody = ({
                   updateCell={updateCell}
                   getNextCellKey={getNextCellKey}
                   searchTerm={searchTerm}
+                  columnType={columnTypeMap.get(col.id) ?? "text"}
                   style={{
                     position: "absolute",
-                    top: vr.start,
-                    left: vc.start + 40,
+                    top: 0,
+                    left: vc.start + 48,
                     width: vc.size,
                     height: vr.size,
-                    backgroundColor: filteredColumnIds.includes(col.id)
+                    backgroundColor: hoveredRowId === row.original.id
+                      ? "#F7F7F7"
+                      : filteredColumnIds.includes(col.id)
                       ? "#d1fae5" // green-100 for filtered columns
                       : sortedColumnIds.includes(col.id)
                       ? "#FFEFE6" // Light peach color for sorted columns
@@ -184,7 +203,7 @@ export const VirtualizedTableBody = ({
                 />
               );
             })}
-          </React.Fragment>
+          </div>
         );
       })}
     </div>

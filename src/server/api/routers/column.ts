@@ -63,18 +63,18 @@ export const columnRouter = createTRPCRouter({
       if (totalRows > 0) {
         const progressId = `${input.tableId}-${newColumn.id}`;
         columnAddProgress.set(progressId, { current: 0, total: totalRows, columnName: input.name });
-        
+
         const isNumber = newColumn.type === "number";
         const batchSize = 1000; // Process 1000 rows at a time
         const totalBatches = Math.ceil(totalRows / batchSize);
-        
+
         console.log(`Adding column "${input.name}" to ${totalRows} rows in ${totalBatches} batches`);
 
         try {
           // Process rows in batches to avoid memory issues
           for (let batch = 0; batch < totalBatches; batch++) {
             const skip = batch * batchSize;
-            
+
             // Fetch a batch of row IDs
             const rowBatch = await ctx.prisma.row.findMany({
               where: { tableId: input.tableId, isDeleted: false },
@@ -90,24 +90,24 @@ export const columnRouter = createTRPCRouter({
                   rowId: row.id,
                   columnId: newColumn.id,
                   value: "",
-                  flattenedValueText: !isNumber ? "" : null,
-                  flattenedValueNumber: isNumber ? null : null,
+                  flattenedValueText: isNumber ? null : "",
+                  flattenedValueNumber: null,
                 })),
                 skipDuplicates: true,
               });
-              
+
               // Update progress
               const currentProgress = Math.min((batch + 1) * batchSize, totalRows);
-              columnAddProgress.set(progressId, { 
-                current: currentProgress, 
-                total: totalRows, 
-                columnName: input.name 
+              columnAddProgress.set(progressId, {
+                current: currentProgress,
+                total: totalRows,
+                columnName: input.name
               });
-              
+
               console.log(`Batch ${batch + 1}/${totalBatches} completed (${rowBatch.length} cells created)`);
             }
           }
-          
+
           // Keep progress for a short time to show completion
           setTimeout(() => {
             columnAddProgress.delete(progressId);

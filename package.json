@@ -18,7 +18,11 @@
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:clean": "npx tsx scripts/clean-deleted-records-transactional.ts",
+    "db:clean:dry-run": "npx tsx scripts/clean-deleted-records-dry-run.ts",
+    "db:optimize": "prisma db execute --file ./scripts/optimize-indexes.sql",
+    "db:analyze": "echo 'Run EXPLAIN ANALYZE on slow queries to identify bottlenecks'"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.2",

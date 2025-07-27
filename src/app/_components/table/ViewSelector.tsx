@@ -26,6 +26,7 @@ import {
   Lock,
   Users,
   User,
+  Search,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import type { inferProcedureInput, inferProcedureOutput } from "@trpc/server";
@@ -85,14 +86,14 @@ export function ViewSelector({
   >;
 
   return (
-    <div className="w-56 border-r px-4 py-3 bg-gray-50 text-sm flex flex-col space-y-3">
+    <div className="w-56 border-r border-[#E1E1E1] px-3 py-3 bg-[#FAFAFA] text-sm flex flex-col space-y-2">
       {/* Create new view */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="justify-start w-full">
-            <Plus className="w-4 h-4 mr-2" />
-            Create new...
-          </Button>
+          <button className="flex items-center px-2 py-1.5 rounded text-[13px] transition-colors hover:bg-[#F0F0F0] text-[#333333] w-full text-left">
+            <Plus className="w-3.5 h-3.5 mr-2 text-[#666666]" />
+            Create...
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-48">
           {VIEW_TYPES.map(({ label, icon: Icon }) => (
@@ -112,18 +113,27 @@ export function ViewSelector({
       </DropdownMenu>
 
       {/* Search */}
-      <Input placeholder="Find a view" className="h-8 text-sm" />
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#666666]" />
+        <Input 
+          placeholder="Find a view" 
+          className="h-7 text-[12px] border-[#D0D0D0] focus:border-[#2D7FF9] pl-7" 
+        />
+      </div>
 
       {/* View list */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5">
         {views.map((v) => (
           <button
             key={v.id}
             onClick={() => onViewChange(v.id)}
-            className={`flex items-center px-2 py-1 rounded ${currentViewId === v.id ? "bg-gray-200 font-medium" : "hover:bg-gray-100"
-              }`}
+            className={`flex items-center px-2 py-1.5 rounded text-[13px] transition-colors ${
+              currentViewId === v.id 
+                ? "bg-[#E8F2FF] font-medium text-[#2D7FF9]" 
+                : "hover:bg-[#F0F0F0] text-[#333333]"
+            }`}
           >
-            <LayoutGrid className="w-4 h-4 mr-2 text-blue-500" />
+            <LayoutGrid className="w-3.5 h-3.5 mr-2" style={{ color: currentViewId === v.id ? '#2D7FF9' : '#666666' }} />
             {v.name}
           </button>
         ))}
@@ -188,6 +198,7 @@ export function ViewSelector({
                 );
               }}
               disabled={!newViewName || createView.isPending}
+              className="bg-[#2D7FF9] hover:bg-[#2368C4] text-white"
             >
               {createView.isPending ? "Creating..." : "Create view"}
             </Button>
