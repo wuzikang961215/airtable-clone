@@ -279,11 +279,12 @@ export function useTableData(tableId: string, viewId?: string | null) {
   const addRowMutation = api.row.add.useMutation();
   const bulkCreateRowsMutation = api.row.bulkCreateRows.useMutation();
   
-  // Poll for bulk insert progress (always poll to detect inserts in other tables)
+  // Poll for bulk insert progress only when there's an active bulk insert
   const { data: bulkInsertProgress } = api.row.getBulkInsertProgress.useQuery(
     { tableId },
     { 
-      refetchInterval: isBulkInserting ? 500 : 2000, // Poll faster when actively inserting
+      enabled: isBulkInserting,
+      refetchInterval: 500,
       staleTime: 0
     }
   );
